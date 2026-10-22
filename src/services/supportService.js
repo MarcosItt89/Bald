@@ -17,7 +17,7 @@ import { ilikeTerm } from '../lib/queryHelpers'
 const ACTIVE = ['open', 'in_progress', 'waiting_user']
 const DONE = ['resolved', 'closed']
 
-export const getTickets = ({ status, createdBy, notCreatedBy, assignedTo, unassigned, overdue, search, limit = 200 } = {}) => {
+export const getTickets = ({ status, createdBy, notCreatedBy, assignedTo, unassigned, overdue, category, search, limit = 200 } = {}) => {
   let q = supabase.from('v_support_tickets').select('*').order('updated_at', { ascending: false }).limit(limit)
   if (status === 'active') q = q.in('status', ACTIVE)
   else if (status === 'done') q = q.in('status', DONE)
@@ -27,6 +27,7 @@ export const getTickets = ({ status, createdBy, notCreatedBy, assignedTo, unassi
   if (assignedTo) q = q.eq('assigned_to', assignedTo)
   if (unassigned) q = q.is('assigned_to', null)
   if (overdue) q = q.eq('is_overdue', true)
+  if (category) q = q.eq('category', category)
   if (search) {
     const t = ilikeTerm(search)
     q = q.or(`subject.ilike.${t},folio.ilike.${t},description.ilike.${t}`)

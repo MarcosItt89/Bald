@@ -7,6 +7,7 @@
  *   - "Validar" requiere validate_shelf_tags (supervisor/gerente).
  */
 import { useCallback, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Check, Printer, RotateCcw, Tags, X } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useAsync } from '../../hooks/useAsync'
@@ -30,7 +31,8 @@ export default function ShelfTagsPage() {
   const toast = useToast()
   const canManage = hasPermission(P.MANAGE_SHELF_TAGS)
   const canValidate = hasPermission(P.VALIDATE_SHELF_TAGS)
-  const [tab, setTab] = useState('pending')
+  const [params] = useSearchParams()
+  const [tab, setTab] = useState(() => params.get('tab') ?? 'pending')
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [busy, setBusy] = useState(false)
 

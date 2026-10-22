@@ -9,6 +9,7 @@
  * - El autor puede borrar su evidencia mientras siga pendiente.
  */
 import { useCallback, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Camera, Trash2 } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useAsync } from '../../hooks/useAsync'
@@ -37,10 +38,11 @@ const TABS = [
 
 export default function EvidencePage() {
   const { branchFilter, hasPermission } = useAuth()
-  const [tab, setTab] = useState('pending')
+  const [params] = useSearchParams()
+  const [tab, setTab] = useState(() => (TABS.some((t) => t.key === params.get('tab')) ? params.get('tab') : 'pending'))
   const [entityType, setEntityType] = useState('')
-  const [from, setFrom] = useState(addDaysISO(todayISO(), -14))
-  const [to, setTo] = useState(todayISO())
+  const [from, setFrom] = useState(() => params.get('from') ?? addDaysISO(todayISO(), -14))
+  const [to, setTo] = useState(() => params.get('to') ?? todayISO())
   const [selected, setSelected] = useState(null)
 
   const load = useCallback(() => getEvidence({

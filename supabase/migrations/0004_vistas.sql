@@ -12,6 +12,11 @@
 -- =============================================================================
 
 -- Empleados con rol, sucursal y departamento.
+-- Re-ejecución: migraciones posteriores agregan columnas a estas vistas o a sus
+-- tablas (create or replace no permite quitar ni reordenar columnas), así que se
+-- eliminan y se recrean; 0008+ vuelven a crear sus versiones extendidas.
+drop view if exists public.v_employees, public.v_products, public.v_inventory, public.v_inventory_movements, public.v_supplier_visits, public.v_receiving_orders, public.v_receiving_items, public.v_price_changes, public.v_shelf_tags, public.v_expirations, public.v_checklist_runs, public.v_evidence, public.v_orders, public.v_order_items, public.v_tasks, public.v_support_tickets, public.v_support_ticket_messages, public.v_audit_logs cascade;
+
 create or replace view public.v_employees with (security_invoker = on) as
 select e.id, e.user_id, e.company_id, e.branch_id, e.department_id, e.role_id,
        e.employee_code, e.username, e.full_name, e.position, e.email, e.phone,

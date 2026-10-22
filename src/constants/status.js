@@ -91,6 +91,7 @@ export const EVIDENCE_STATUS = {
 export const EVIDENCE_ENTITIES = {
   checklist_run:    'Checklist',
   checklist_answer: 'Pregunta de checklist',
+  inventory_movement: 'Merma',
   task:             'Tarea',
   receiving_order:  'Recibo',
   price_change:     'Cambio de precio',
@@ -155,6 +156,16 @@ export const TAG_STATUS = {
 }
 
 // ─── CADUCIDADES ─────────────────────────────────────────────────────────────
+/** Motivos de merma (inventory_movements.waste_reason). */
+export const WASTE_REASONS = {
+  expired:     { label: 'Caducado',    color: 'warning' },
+  damaged:     { label: 'Dañado',      color: 'danger'  },
+  theft:       { label: 'Robo',        color: 'danger'  },
+  mishandling: { label: 'Mal manejo',  color: 'warning' },
+  temperature: { label: 'Temperatura', color: 'info'    },
+  other:       { label: 'Otro',        color: 'default' },
+}
+
 export const EXPIRATION_STATUS = {
   active:    { label: 'En anaquel', color: 'success' },
   markdown:  { label: 'Rebajado',   color: 'info'    },
@@ -172,6 +183,19 @@ export const expirationUrgency = (daysLeft) => {
 }
 
 // ─── TAREAS ──────────────────────────────────────────────────────────────────
+/** Antigüedad de tareas abiertas (días completos desde que se crearon). */
+export const TASK_AGE_BUCKETS = [
+  { key: 'lt1', label: '< 1 día' },
+  { key: '1-3', label: '1–3 días' },
+  { key: '4-7', label: '4–7 días' },
+  { key: 'gt7', label: '> 7 días' },
+]
+
+export const taskAgeBucket = (createdAt) => {
+  const days = Math.floor((Date.now() - new Date(createdAt)) / 864e5)
+  return days < 1 ? 'lt1' : days <= 3 ? '1-3' : days <= 7 ? '4-7' : 'gt7'
+}
+
 export const PRIORITY = {
   low:      { label: 'Baja',    color: 'default' },
   medium:   { label: 'Media',   color: 'info'    },

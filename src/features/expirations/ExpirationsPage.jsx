@@ -8,6 +8,7 @@
  * Los lotes también llegan solos al cerrar un recibo con fecha de caducidad.
  */
 import { useCallback, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { CalendarClock, Plus } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useAsync } from '../../hooks/useAsync'
@@ -33,7 +34,8 @@ const OPEN = ['active', 'markdown', 'expired']
 export default function ExpirationsPage() {
   const { branchFilter, workingBranchId } = useAuth()
   const toast = useToast()
-  const [tab, setTab] = useState('open')
+  const [params] = useSearchParams()
+  const [tab, setTab] = useState(() => params.get('tab') ?? 'open')
   const [creating, setCreating] = useState(false)
   const [product, setProduct] = useState(null)
   const [form, setForm] = useState({ lot: '', quantity: '', expiration_date: '' })

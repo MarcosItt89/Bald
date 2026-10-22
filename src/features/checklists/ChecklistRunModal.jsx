@@ -11,7 +11,7 @@
  *   corrección (esta última lo reabre y notifica a quien lo llenó).
  */
 import { useCallback, useRef, useState } from 'react'
-import { Camera, CheckCircle2, RotateCcw } from 'lucide-react'
+import { Camera, CheckCircle2, RotateCcw, ShieldAlert, Thermometer, TriangleAlert } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useAsync } from '../../hooks/useAsync'
 import { useToast } from '../../hooks/useToast'
@@ -25,6 +25,7 @@ import { formatDateTime, formatTime } from '../../utils/formatters'
 import Modal from '../../components/ui/Modal'
 import Button from '../../components/ui/Button'
 import StatusBadge from '../../components/ui/StatusBadge'
+import Badge from '../../components/ui/Badge'
 import ProgressBar from '../../components/ui/ProgressBar'
 import { Textarea } from '../../components/ui/Input'
 import { ErrorState, Loader } from '../../components/ui/Feedback'
@@ -209,7 +210,12 @@ function QuestionItem({ question: q, answer, evidence, editable, onSave, onEvide
   const [showComment, setShowComment] = useState(false)
   const [uploading, setUploading] = useState(false)
   const value = answer?.answer_value ?? ''
-  const needsPhoto = q.requires_photo || q.answer_type === 'photo'
+  const hasRange = q.answer_type === 'number' && (q.min_value != null || q.max_value != null)
+  const reading = draft ?? value
+  const outOfRange = hasRange && reading !== '' && !Number.isNaN(Number(String(reading).replace(',', '.')))
+    && ((q.min_value != null && Number(String(reading).replace(',', '.')) < Number(q.min_value))
+      || (q.max_value != null && Number(String(reading).replace(',', '.')) > Number(q.max_value)))
+  const needsPhoto = q.requires_photo || q.answer_type === 'photo' || (hasRange && (outOfRange || answer?.out_of_range))
 
   const uploadPhoto = async (e) => {
     const file = e.target.files?.[0]
@@ -231,12 +237,13 @@ function QuestionItem({ question: q, answer, evidence, editable, onSave, onEvide
     }
   }
 
-  const stateClass = !hasValue(answer) ? 'q-pending' : value === 'no' ? 'q-fail' : 'q-ok'
+  const stateClass = !hasValue(answer) ? 'q-pending' : value === 'no' || answer?.out_of_range ? 'q-fail' : 'q-ok'
 
   return (
     <li className={`question ${stateClass}`}>
       <div className="question-head">
         <span className="question-text">{q.text}{q.is_required && <span className="form-required"> *</span>}</span>
+        {q.is_critical && <Badge color="danger" title="Un «No» crea una tarea urgente y avisa al gerente"><ShieldAlert size={11} /> Crítica</Badge>}
         {!q.is_active && <span className="text-muted text-sm">(pregunta retirada)</span>}
       </div>
 
@@ -256,7 +263,21 @@ function QuestionItem({ question: q, answer, evidence, editable, onSave, onEvide
           </div>
         )}
 
-        {['text', 'signature', 'number'].includes(q.answer_type) && (
+        {hasRange && (
+          <div className={`range-input ${outOfRange ? 'range-out' : ''}`}>
+            <input className="form-input" disabled={!editable} type="text" inputMode="decimal" pattern="-?[0-9]*[.,]?[0-9]*"
+              placeholder="Lectura" aria-label={`Lectura de ${q.equipment_name ?? q.text}`}
+              value={reading} onChange={(e) => setDraft(e.target.value)}
+              onBlur={() => {
+                if (draft !== null && draft !== value) { onSave(q, draft); if (outOfRange) setShowComment(true) }
+                setDraft(null)
+              }} />
+            <span className="range-unit">{q.unit}</span>
+            <span className="range-hint"><Thermometer size={13} /> Permitido: {q.min_value ?? '−∞'} a {q.max_value ?? '∞'} {q.unit}</span>
+          </div>
+        )}
+
+        {['text', 'signature', 'number'].includes(q.answer_type) && !hasRange && (
           <input className="form-input" disabled={!editable}
             type={q.answer_type === 'number' ? 'number' : 'text'} step="any"
             placeholder={q.answer_type === 'signature' ? 'Escribe tu nombre completo' : 'Respuesta'}
@@ -295,6 +316,12 @@ function QuestionItem({ question: q, answer, evidence, editable, onSave, onEvide
         <textarea className="form-input form-textarea question-comment" rows={2} disabled={!editable}
           placeholder="Comentario / incidencia" defaultValue={answer?.comment ?? ''}
           onBlur={(e) => { if (answer && e.target.value !== (answer.comment ?? '')) onSave(q, answer.answer_value, e.target.value) }} />
+      )}
+      {hasRange && (outOfRange || answer?.out_of_range) && (
+        <p className="range-alert"><TriangleAlert size={14} /> Fuera de rango: se creó una tarea urgente y se avisó al gerente. Escribe qué hiciste en el comentario y toma una foto del termómetro.</p>
+      )}
+      {q.answer_type === 'yes_no' && value === 'no' && (
+        <p className="text-sm text-muted">Se creó una tarea {q.is_critical ? 'urgente y se avisó al gerente' : 'para el jefe del departamento'}. Explica el problema en el comentario.</p>
       )}
       {editable && !showComment && !answer?.comment && hasValue(answer) && (
         <button type="button" className="link-btn" onClick={() => setShowComment(true)}>+ Agregar comentario</button>

@@ -23,6 +23,7 @@ const DashboardPage        = page(() => import('../features/dashboard/DashboardP
 const InventoryPage        = page(() => import('../features/inventory/InventoryPage'))
 const PriceCheckPage       = page(() => import('../features/inventory/PriceCheckPage'))
 const StockMovementsPage   = page(() => import('../features/inventory/StockMovementsPage'))
+const WastePage            = page(() => import('../features/waste/WastePage'))
 const ReceivingPage        = page(() => import('../features/receiving/ReceivingPage'))
 const ReceivingDetailPage  = page(() => import('../features/receiving/ReceivingDetailPage'))
 const ReceivingSummaryPage = page(() => import('../features/receiving/ReceivingSummaryPage'))
@@ -40,6 +41,7 @@ const TasksPage            = page(() => import('../features/tasks/TasksPage'))
 const ReportsPage          = page(() => import('../features/reports/ReportsPage'))
 const BranchesPage         = page(() => import('../features/branches/BranchesPage'))
 const DepartmentsPage      = page(() => import('../features/departments/DepartmentsPage'))
+const ZonesPage            = page(() => import('../features/zones/ZonesPage'))
 const EmployeesPage        = page(() => import('../features/employees/EmployeesPage'))
 const RolesPage            = page(() => import('../features/roles/RolesPage'))
 const PermissionsPage      = page(() => import('../features/roles/PermissionsPage'))
@@ -54,6 +56,7 @@ const PROTECTED = [
   ['inventory',            InventoryPage,          { permission: P.VIEW_INVENTORY }],
   ['inventory/prices',     PriceCheckPage,         { permission: P.VIEW_PRICES }],
   ['inventory/movements',  StockMovementsPage,     { permission: P.VIEW_INVENTORY }],
+  ['waste',                WastePage,              { permission: P.REGISTER_WASTE }],
   ['receiving',            ReceivingPage,          { permission: P.RECEIVE_PRODUCTS }],
   ['receiving/summary',    ReceivingSummaryPage,   { anyOf: [P.RECEIVE_PRODUCTS, P.VIEW_REPORTS] }],
   ['receiving/:id',        ReceivingDetailPage,    { anyOf: [P.RECEIVE_PRODUCTS, P.VIEW_REPORTS] }],
@@ -71,6 +74,7 @@ const PROTECTED = [
   ['reports',              ReportsPage,            { permission: P.VIEW_REPORTS }],
   ['branches',             BranchesPage,           { permission: P.MANAGE_BRANCHES }],
   ['departments',          DepartmentsPage,        { permission: P.MANAGE_BRANCHES }],
+  ['zones',                ZonesPage,              { permission: P.MANAGE_BRANCHES }],
   ['employees',            EmployeesPage,          { permission: P.MANAGE_EMPLOYEES }],
   ['roles',                RolesPage,              { anyOf: [P.MANAGE_ROLES, P.MANAGE_EMPLOYEES] }],
   ['permissions',          PermissionsPage,        { permission: P.MANAGE_ROLES }],

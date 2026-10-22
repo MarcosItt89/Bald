@@ -125,14 +125,20 @@ export default function AuthProvider({ children }) {
     const { profile } = state
     const permissions = new Set(profile?.permissions ?? [])
     const isCompanyScope = profile?.role_scope === 'company'
-    // Sucursal usada para FILTRAR: company puede elegir (null = todas); el resto, la suya.
-    const branchFilter = isCompanyScope ? activeBranchId : profile?.branch_id ?? null
+    const isZoneScope = profile?.role_scope === 'zone'
+    // company y zone trabajan con varias sucursales (zone: solo las de sus zonas, lo asegura RLS).
+    const isMultiBranch = isCompanyScope || isZoneScope
+    // Sucursal usada para FILTRAR: multi-sucursal puede elegir (null = todas las visibles); el resto, la suya.
+    const branchFilter = isMultiBranch ? activeBranchId : profile?.branch_id ?? null
     return {
       ...state,
       permissions,
       hasPermission: (p) => permissions.has(p),
       hasAny: (list) => list.some((p) => permissions.has(p)),
       isCompanyScope,
+      isZoneScope,
+      isMultiBranch,
+      zoneIds: profile?.zone_ids ?? [],
       branchFilter,
       // Sucursal usada para CREAR registros (nunca null si el empleado tiene sucursal).
       workingBranchId: branchFilter ?? profile?.branch_id ?? null,

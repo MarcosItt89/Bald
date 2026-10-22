@@ -5,6 +5,10 @@
  *   día actual se ejecuta run_daily_maintenance(): genera los checklists de
  *   hoy y marca como vencidos los que pasaron su hora límite.
  * - Pestañas por estado + filtros de departamento, sucursal y fecha.
+ *   «Míos»: los checklists del departamento del usuario (p. ej. Gerencia para el gerente).
+ * - Plantillas con rondas (0016): una tarjeta por plantilla y sucursal con la
+ *   ronda actual («Ronda 3 de 7») y fichas para abrir cualquier otra ronda.
+ *   Una ronda futura no se puede iniciar hasta 10 minutos antes de su hora.
  * - "Iniciar" pasa el checklist a En progreso y abre la ejecución.
  * - La flecha ▸ expande la tarjeta y muestra sus ítems con la respuesta.
  * - El estado "vencido" se recalcula cada minuto con la hora local, así un
@@ -18,7 +22,7 @@ import { useAsync } from '../../hooks/useAsync'
 import { useToast } from '../../hooks/useToast'
 import { P } from '../../config/permissions'
 import { getRuns, getRunDetail, runDailyMaintenance, startRun } from '../../services/checklistService'
-import { getBranches, getDepartments } from '../../services/organizationService'
+import { getMyBranches, getDepartments } from '../../services/organizationService'
 import { CHECKLIST_REVIEW_STATUS, CHECKLIST_RUN_STATUS, SHIFTS } from '../../constants/status'
 import { formatDate, formatTime, todayISO } from '../../utils/formatters'
 import PageHeader from '../../components/ui/PageHeader'
@@ -31,6 +35,7 @@ import { EmptyState, ErrorState, Loader } from '../../components/ui/Feedback'
 import ChecklistRunModal from './ChecklistRunModal'
 
 const TABS = [
+  { key: 'mine',        label: 'Míos',        statuses: null, mine: true },
   { key: 'all',         label: 'Todos',       statuses: null },
   { key: 'pending',     label: 'Pendientes',  statuses: ['pending', 'reopened'] },
   { key: 'in_progress', label: 'En progreso', statuses: ['in_progress'] },
@@ -39,6 +44,25 @@ const TABS = [
 ]
 const ORDER = { overdue: 0, reopened: 1, in_progress: 2, pending: 3, completed: 4, cancelled: 5 }
 const nowHHMM = () => new Date().toTimeString().slice(0, 5)
+const EARLY_MIN = 10
+
+/** HH:MM + minutos (sin pasar de 23:59). */
+const addMinutes = (hhmm, mins) => {
+  const [h, m] = hhmm.split(':').map(Number)
+  const t = Math.min(23 * 60 + 59, h * 60 + m + mins)
+  return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`
+}
+
+/** ¿Es una ronda que todavía no empieza? (solo aplica al día de hoy). */
+const isFuture = (run, today, now) =>
+  run.scheduled_date === today && run.scheduled_start.slice(0, 5) > addMinutes(now, EARLY_MIN)
+
+/** Ronda a mostrar: la abierta, si no la vigente, si no la siguiente, si no la última. */
+const currentRound = (rounds, today, now) =>
+  rounds.find((r) => ['in_progress', 'reopened'].includes(r.status))
+  ?? rounds.find((r) => r.status === 'pending' && !isFuture(r, today, now))
+  ?? rounds.find((r) => r.status === 'pending')
+  ?? rounds[rounds.length - 1]
 
 /** Vencido si sigue abierto y ya pasó su fecha u hora límite (reabiertos no vencen). */
 const effectiveStatus = (run, today, now) => {
@@ -49,10 +73,11 @@ const effectiveStatus = (run, today, now) => {
 }
 
 export default function ChecklistsPage() {
-  const { branchFilter, isCompanyScope, hasPermission, profile } = useAuth()
+  const { branchFilter, isCompanyScope, isZoneScope, isMultiBranch, zoneIds, hasPermission, profile } = useAuth()
   const toast = useToast()
   const canFill = hasPermission(P.FILL_CHECKLISTS)
-  const [tab, setTab] = useState('all')
+  const myDept = profile.department_id
+  const [tab, setTab] = useState(myDept ? 'mine' : 'all')
   const [date, setDate] = useState(todayISO())
   const [departmentId, setDepartmentId] = useState('')
   const [branchId, setBranchId] = useState(null) // null = usar la sucursal del Topbar
@@ -65,7 +90,7 @@ export default function ChecklistsPage() {
     return () => clearInterval(id)
   }, [])
 
-  const effectiveBranch = isCompanyScope ? (branchId ?? branchFilter) : profile.branch_id
+  const effectiveBranch = isMultiBranch ? (branchId ?? branchFilter) : profile.branch_id
   const today = todayISO()
 
   const load = useCallback(async () => {
@@ -74,7 +99,11 @@ export default function ChecklistsPage() {
   }, [effectiveBranch, date, departmentId, today])
   const { data: raw = [], loading, error, reload } = useAsync(load)
   const { data: departments = [] } = useAsync(getDepartments)
-  const loadBranches = useCallback(() => (isCompanyScope ? getBranches({ onlyActive: true }) : Promise.resolve([])), [isCompanyScope])
+  const zoneKey = zoneIds.join(',')
+  const loadBranches = useCallback(
+    () => getMyBranches({ isCompanyScope, isZoneScope, zoneIds: zoneKey ? zoneKey.split(',') : [] }),
+    [isCompanyScope, isZoneScope, zoneKey],
+  )
   const { data: branches = [] } = useAsync(loadBranches)
 
   const runs = useMemo(() => raw
@@ -84,10 +113,31 @@ export default function ChecklistsPage() {
 
   const visible = useMemo(() => {
     const t = TABS.find((x) => x.key === tab)
+    if (t.mine) return runs.filter((r) => r.department_id === myDept)
     return t.statuses ? runs.filter((r) => t.statuses.includes(r.status)) : runs
-  }, [runs, tab])
+  }, [runs, tab, myDept])
 
-  const count = (t) => (t.statuses ? runs.filter((r) => t.statuses.includes(r.status)).length : runs.length)
+  // Una tarjeta por corrida; las plantillas con rondas se agrupan por plantilla y sucursal.
+  const cards = useMemo(() => {
+    const out = []
+    const groups = new Map()
+    visible.forEach((r) => {
+      if ((r.rounds_total ?? 1) <= 1) { out.push({ key: r.id, run: r, rounds: null }); return }
+      const key = `${r.template_id}:${r.branch_id}`
+      if (!groups.has(key)) {
+        const g = { key, visibleRounds: [], rounds: runs.filter((x) => x.template_id === r.template_id && x.branch_id === r.branch_id)
+          .sort((a, b) => a.scheduled_start.localeCompare(b.scheduled_start)) }
+        groups.set(key, g)
+        out.push(g)
+      }
+      groups.get(key).visibleRounds.push(r)
+    })
+    groups.forEach((g) => { g.run = currentRound(g.visibleRounds.sort((a, b) => a.scheduled_start.localeCompare(b.scheduled_start)), today, now) })
+    return out
+  }, [visible, runs, today, now])
+
+  const count = (t) => (t.mine ? runs.filter((r) => r.department_id === myDept && !['completed', 'cancelled'].includes(r.status)).length
+    : t.statuses ? runs.filter((r) => t.statuses.includes(r.status)).length : runs.length)
   const done = runs.filter((r) => r.status === 'completed').length
   const valid = runs.filter((r) => r.status !== 'cancelled').length
 
@@ -121,14 +171,14 @@ export default function ChecklistsPage() {
 
       {valid > 0 && <div className="mb-3"><ProgressBar value={done} total={valid} semaphore label={`${Math.round((done / valid) * 100)}% de cumplimiento`} /></div>}
 
-      <Tabs active={tab} onChange={setTab} tabs={TABS.map((t) => ({ key: t.key, label: t.label, count: count(t) }))} />
+      <Tabs active={tab} onChange={setTab} tabs={TABS.filter((t) => !t.mine || myDept).map((t) => ({ key: t.key, label: t.label, count: count(t) }))} />
 
       <div className="filters">
         <select className="filter-select" value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
           <option value="">Todos los departamentos</option>
           {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
         </select>
-        {isCompanyScope ? (
+        {isMultiBranch ? (
           <select className="filter-select" value={effectiveBranch ?? ''} onChange={(e) => setBranchId(e.target.value)}>
             <option value="">Todas las sucursales</option>
             {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
@@ -148,9 +198,11 @@ export default function ChecklistsPage() {
       )}
 
       <div className="cl-section-body">
-        {visible.map((run) => (
-          <RunCard key={run.id} run={run} showBranch={!effectiveBranch} canFill={canFill}
-            starting={starting === run.id} onStart={() => start(run)} onOpen={() => setOpenRunId(run.id)} />
+        {cards.map(({ key, run, rounds }) => (
+          <RunCard key={key} run={run} rounds={rounds} future={isFuture(run, today, now)} showBranch={!effectiveBranch} canFill={canFill}
+            starting={starting === run.id} onStart={() => start(run)} onOpen={() => setOpenRunId(run.id)}
+            onPickRound={(r) => (canFill && ['pending', 'reopened'].includes(r.status) && !isFuture(r, today, now) ? start(r) : setOpenRunId(r.id))}
+            isFutureRound={(r) => isFuture(r, today, now)} />
         ))}
       </div>
 
@@ -159,9 +211,9 @@ export default function ChecklistsPage() {
   )
 }
 
-function RunCard({ run, showBranch, canFill, starting, onStart, onOpen }) {
+function RunCard({ run, rounds, future, showBranch, canFill, starting, onStart, onOpen, onPickRound, isFutureRound }) {
   const [expanded, setExpanded] = useState(false)
-  const canStart = canFill && ['pending', 'reopened', 'in_progress'].includes(run.status)
+  const canStart = canFill && ['pending', 'reopened', 'in_progress'].includes(run.status) && !future
 
   return (
     <div className={`cl-run-card cl-run-${run.status}`}>
@@ -173,6 +225,7 @@ function RunCard({ run, showBranch, canFill, starting, onStart, onOpen }) {
         <div className="cl-run-info" onClick={onOpen} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onOpen()}>
           <span className="cl-run-title">{run.title}</span>
           <span className="cl-run-meta">
+            {rounds && <strong className="cl-round-label">Ronda {run.round_no} de {run.rounds_total} · </strong>}
             {run.department_name ?? 'General'} · {SHIFTS[run.shift]} · <Clock size={11} /> {formatTime(run.scheduled_start)}–{formatTime(run.scheduled_end)}
             {showBranch && ` · ${run.branch_name}`}
             {run.completed_by_name && ` · completó ${run.completed_by_name} ${formatTime(run.completed_at)}`}
@@ -186,7 +239,9 @@ function RunCard({ run, showBranch, canFill, starting, onStart, onOpen }) {
           )}
           {run.review_status && <StatusBadge statusMap={CHECKLIST_REVIEW_STATUS} value={run.review_status} />}
           <StatusBadge statusMap={CHECKLIST_RUN_STATUS} value={run.status} />
-          {canStart ? (
+          {future && run.status === 'pending' ? (
+            <Badge color="default" title="Se podrá iniciar 10 minutos antes"><Clock size={11} /> Desde {formatTime(run.scheduled_start)}</Badge>
+          ) : canStart ? (
             <Button size="sm" loading={starting} onClick={onStart}>
               {!starting && <Play size={12} />} {run.status === 'in_progress' ? 'Continuar' : 'Iniciar'}
             </Button>
@@ -195,6 +250,17 @@ function RunCard({ run, showBranch, canFill, starting, onStart, onOpen }) {
           )}
         </div>
       </div>
+      {rounds && (
+        <div className="cl-rounds" role="group" aria-label="Rondas del día">
+          {rounds.map((r) => (
+            <button key={r.id} type="button" title={`Ronda ${r.round_no}: ${CHECKLIST_RUN_STATUS[r.status]?.label ?? r.status}${isFutureRound(r) ? ' (aún no empieza)' : ''}`}
+              className={`cl-round cl-round-${isFutureRound(r) && r.status === 'pending' ? 'future' : r.status} ${r.id === run.id ? 'cl-round-current' : ''}`}
+              onClick={() => onPickRound(r)}>
+              {formatTime(r.scheduled_start)}
+            </button>
+          ))}
+        </div>
+      )}
       {expanded && <RunItems runId={run.id} />}
     </div>
   )

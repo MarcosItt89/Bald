@@ -10,9 +10,10 @@
  * Nunca pongas aquí la service_role / secret key.
  */
 export const env = {
-  supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
-  // Se acepta el nombre nuevo (publishable) y el antiguo (anon) por compatibilidad.
-  supabaseKey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? import.meta.env.VITE_SUPABASE_ANON_KEY,
+  // También se aceptan los nombres NEXT_PUBLIC_* que crea la integración Supabase ↔ Vercel.
+  supabaseUrl: import.meta.env.VITE_SUPABASE_URL || import.meta.env.NEXT_PUBLIC_SUPABASE_URL,
+  supabaseKey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY
+    || import.meta.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   // Dominio "virtual" para convertir usuario → correo de Supabase Auth.
   // Debe coincidir con el usado en supabase/seed/0008_usuarios_y_demo.sql.
   authEmailDomain: import.meta.env.VITE_AUTH_EMAIL_DOMAIN || 'operalia.local',

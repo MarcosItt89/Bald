@@ -11,7 +11,7 @@ import { useAsync } from '../../hooks/useAsync'
 import { useToast } from '../../hooks/useToast'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { getEmployees, createEmployee, updateEmployee, adminSetPassword, generateTempPassword } from '../../services/employeeService'
-import { getBranches, getDepartments } from '../../services/organizationService'
+import { getBranches, getDepartments, getEmployeeZones, getZones, setEmployeeZones } from '../../services/organizationService'
 import { getRoles } from '../../services/roleService'
 import { ACTIVE_STATUS, toOptions } from '../../constants/status'
 import PageHeader from '../../components/ui/PageHeader'
@@ -41,8 +41,20 @@ export default function EmployeesPage() {
   const { data: roles = [] } = useAsync(getRoles)
   const { data: branches = [] } = useAsync(getBranches)
   const { data: departments = [] } = useAsync(getDepartments)
-  // Un gerente no puede asignar roles de alcance empresa (la BD también lo impide).
-  const roleOptions = roles.filter((r) => isCompanyScope || r.scope !== 'company').map((r) => ({ value: r.id, label: r.name }))
+  const { data: zones = [] } = useAsync(getZones)
+  // Solo un administrador asigna roles de alcance empresa o zona (la BD también lo impide).
+  const roleOptions = roles.filter((r) => isCompanyScope || !['company', 'zone'].includes(r.scope)).map((r) => ({ value: r.id, label: r.name }))
+  const isZoneRole = form && roles.find((r) => r.id === form.role_id)?.scope === 'zone'
+  const toggleZone = (id) => setForm((f) => ({ ...f, zoneIds: f.zoneIds.includes(id) ? f.zoneIds.filter((z) => z !== id) : [...f.zoneIds, id] }))
+
+  const openEdit = async (row) => {
+    setForm({ ...row, zoneIds: [] })
+    if (row.role_scope !== 'zone') return
+    try {
+      const zoneIds = await getEmployeeZones(row.id)
+      setForm((f) => (f?.id === row.id ? { ...f, zoneIds } : f))
+    } catch (err) { toast.error(err.message) }
+  }
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value })
 
   const resetId = params.get('reset')
@@ -74,8 +86,10 @@ export default function EmployeesPage() {
     e.preventDefault()
     setSaving(true)
     try {
-      if (form.id) await updateEmployee(form.id, form)
-      else await createEmployee(form)
+      const { zoneIds, ...employee } = form
+      if (isZoneRole && !zoneIds.length) throw new Error('Asigna al menos una zona a este rol')
+      const saved = form.id ? await updateEmployee(form.id, employee) : await createEmployee(employee)
+      if (isCompanyScope && (isZoneRole || zoneIds.length)) await setEmployeeZones(saved.id, isZoneRole ? zoneIds : [])
       toast.success('Empleado guardado')
       setForm(null)
       reload()
@@ -85,12 +99,12 @@ export default function EmployeesPage() {
   return (
     <div className="page">
       <PageHeader icon={Users} title="Empleados" subtitle={`${rows.length} empleados`}
-        actions={<Button size="sm" onClick={() => setForm({ username: '', password: '', full_name: '', employee_code: '', position: '', phone: '', role_id: '', branch_id: workingBranchId ?? '', department_id: '', status: 'active' })}>
+        actions={<Button size="sm" onClick={() => setForm({ username: '', password: '', full_name: '', employee_code: '', position: '', phone: '', role_id: '', branch_id: workingBranchId ?? '', department_id: '', status: 'active', zoneIds: [] })}>
           <Plus size={14} /> Nuevo empleado</Button>} />
       <div className="filters"><SearchInput value={search} onChange={setSearch} placeholder="Nombre, usuario o código…" /></div>
       {error && <ErrorState error={error} onRetry={reload} />}
       <Card flush>
-        <Table data={rows} loading={loading} onRowClick={(r) => setForm(r)} columns={[
+        <Table data={rows} loading={loading} onRowClick={openEdit} columns={[
           { key: 'employee_code', label: 'Código', mono: true, sortable: true },
           { key: 'full_name', label: 'Nombre', bold: true, sortable: true, render: (v, r) => <>{v}{r.is_owner && <Badge color="warning" className="badge-icon" title="Administrador principal"><Crown size={11} /> Propietario</Badge>}<div className="cell-sub">@{r.username}{r.position ? ` · ${r.position}` : ''}</div></> },
           { key: 'branch_name', label: 'Sucursal', sortable: true },
@@ -119,6 +133,20 @@ export default function EmployeesPage() {
                 options={departments.map((d) => ({ value: d.id, label: d.name }))} onChange={set('department_id')} />
               {form.id && <Select label="Estado" value={form.status} options={toOptions(ACTIVE_STATUS)} onChange={set('status')} />}
             </div>
+            {isZoneRole && (
+              <fieldset className="zone-picker">
+                <legend className="form-label">Zonas que supervisa <span className="form-required">*</span></legend>
+                <div className="zone-picker-list">
+                  {zones.filter((z) => z.is_active || form.zoneIds.includes(z.id)).map((z) => (
+                    <label key={z.id} className="checkbox">
+                      <input type="checkbox" disabled={!isCompanyScope} checked={form.zoneIds.includes(z.id)} onChange={() => toggleZone(z.id)} />
+                      {z.name}{z.branches?.length ? <span className="text-muted text-sm"> ({z.branches.length} suc.)</span> : null}
+                    </label>
+                  ))}
+                </div>
+                <p className="text-muted text-sm">Verá todas las sucursales de estas zonas, solo para su departamento.</p>
+              </fieldset>
+            )}
             {form.id && !form.is_owner && form.id !== profile.id && (
               <div className="access-box">
                 <div><strong>Acceso</strong><div className="text-muted text-sm">{form.has_account ? 'Tiene cuenta para iniciar sesión.' : 'Aún no puede iniciar sesión.'}</div></div>

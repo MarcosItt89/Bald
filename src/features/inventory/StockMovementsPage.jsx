@@ -6,6 +6,7 @@
  * movimientos son inmutables para garantizar trazabilidad.
  */
 import { useCallback, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { ArrowLeftRight, Download } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useAsync } from '../../hooks/useAsync'
@@ -24,9 +25,10 @@ import { ErrorState } from '../../components/ui/Feedback'
 
 export default function StockMovementsPage() {
   const { branchFilter } = useAuth()
-  const [type, setType] = useState('')
-  const [from, setFrom] = useState(addDaysISO(todayISO(), -7))
-  const [to, setTo] = useState(todayISO())
+  const [params] = useSearchParams()
+  const [type, setType] = useState(() => params.get('type') ?? '')
+  const [from, setFrom] = useState(() => params.get('from') ?? addDaysISO(todayISO(), -7))
+  const [to, setTo] = useState(() => params.get('to') ?? todayISO())
   const [search, setSearch] = useState('')
   const debounced = useDebouncedValue(search)
 

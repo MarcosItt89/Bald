@@ -2,13 +2,15 @@
  * ChecklistHistoryPage — historial de checklists completados y vencidos.
  * Muestra fecha, quién completó, revisión y permite abrir el detalle
  * (respuestas + evidencias) en el mismo modal de ejecución.
+ * Acepta filtros por URL (desde Estadísticas): ?from=&to=&status=all|completed|overdue|cancelled&dept=&shift=&template=
  */
 import { useCallback, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Download, History } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useAsync } from '../../hooks/useAsync'
 import { getRuns } from '../../services/checklistService'
-import { CHECKLIST_REVIEW_STATUS, CHECKLIST_RUN_STATUS } from '../../constants/status'
+import { CHECKLIST_REVIEW_STATUS, CHECKLIST_RUN_STATUS, SHIFTS } from '../../constants/status'
 import { addDaysISO, formatDate, formatDateTime, todayISO } from '../../utils/formatters'
 import { downloadCsv } from '../../utils/csv'
 import PageHeader from '../../components/ui/PageHeader'
@@ -18,18 +20,23 @@ import Button from '../../components/ui/Button'
 import StatusBadge from '../../components/ui/StatusBadge'
 import Badge from '../../components/ui/Badge'
 import { ErrorState } from '../../components/ui/Feedback'
+import FilterChip from '../../components/ui/FilterChip'
 import ChecklistRunModal from './ChecklistRunModal'
 
 export default function ChecklistHistoryPage() {
   const { branchFilter } = useAuth()
-  const [from, setFrom] = useState(addDaysISO(todayISO(), -7))
-  const [to, setTo] = useState(todayISO())
-  const [status, setStatus] = useState('completed')
+  const [params] = useSearchParams()
+  const [from, setFrom] = useState(() => params.get('from') ?? addDaysISO(todayISO(), -7))
+  const [to, setTo] = useState(() => params.get('to') ?? todayISO())
+  const [status, setStatus] = useState(() => (params.get('status') === 'all' ? '' : params.get('status') ?? 'completed'))
+  const [departmentId, setDepartmentId] = useState(() => params.get('dept') ?? '')
+  const [shift, setShift] = useState(() => params.get('shift') ?? '')
+  const [templateId, setTemplateId] = useState(() => params.get('template') ?? '')
   const [openId, setOpenId] = useState(null)
 
   const load = useCallback(
-    () => getRuns({ branchId: branchFilter, from, to, status: status || undefined }),
-    [branchFilter, from, to, status],
+    () => getRuns({ branchId: branchFilter, from, to, status: status || undefined, departmentId: departmentId || undefined, shift: shift || undefined, templateId: templateId || undefined }),
+    [branchFilter, from, to, status, departmentId, shift, templateId],
   )
   const { data: rows = [], loading, error, reload } = useAsync(load)
 
@@ -52,8 +59,12 @@ export default function ChecklistHistoryPage() {
         <select className="filter-select" value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="completed">Completados</option>
           <option value="overdue">Vencidos</option>
+          <option value="cancelled">Cancelados</option>
           <option value="">Todos</option>
         </select>
+        {departmentId && <FilterChip label={`Departamento: ${rows[0]?.department_name ?? 'seleccionado'}`} onClear={() => setDepartmentId('')} />}
+        {shift && <FilterChip label={`Turno: ${SHIFTS[shift] ?? shift}`} onClear={() => setShift('')} />}
+        {templateId && <FilterChip label={`Checklist: ${rows[0]?.title ?? 'seleccionado'}`} onClear={() => setTemplateId('')} />}
       </div>
       {error && <ErrorState error={error} onRetry={reload} />}
       <Card flush>

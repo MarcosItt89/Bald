@@ -24,8 +24,10 @@ export async function getDashboardSummary({ can, branchId, employeeId, today }) 
     add('myTasks', countOf(countQuery('tasks').eq('assigned_to', employeeId).in('status', ['pending', 'in_progress'])))
   }
   if (can(P.FILL_CHECKLISTS) || can(P.REVIEW_CHECKLISTS)) {
+    // Rondas futuras (0016) no cuentan como pendientes hasta que llega su hora.
     add('checklistsPending', countOf(byBranch(countQuery('checklist_runs'), branchId)
-      .eq('scheduled_date', today).in('status', ['pending', 'in_progress', 'reopened'])))
+      .eq('scheduled_date', today).in('status', ['pending', 'in_progress', 'reopened'])
+      .lte('scheduled_start', new Date().toTimeString().slice(0, 8))))
     add('checklistsOverdue', countOf(byBranch(countQuery('checklist_runs'), branchId).eq('status', 'overdue')
       .gte('scheduled_date', today)))
   }
@@ -67,10 +69,25 @@ export async function getDashboardSummary({ can, branchId, employeeId, today }) 
   return Object.fromEntries(await Promise.all(tasks))
 }
 
-export const getTodayRuns = ({ branchId, today }) =>
-  unwrap(byBranch(supabase.from('v_checklist_runs')
-    .select('id, title, department_name, scheduled_start, scheduled_end, status, branch_name'), branchId)
-    .eq('scheduled_date', today).order('scheduled_start').limit(8))
+/** Checklists de hoy; de las plantillas con rondas solo la ronda vigente (o la siguiente). */
+export async function getTodayRuns({ branchId, today }) {
+  const rows = await unwrap(byBranch(supabase.from('v_checklist_runs')
+    .select('id, template_id, branch_id, title, department_name, scheduled_start, scheduled_end, status, branch_name, round_no, rounds_total'), branchId)
+    .eq('scheduled_date', today).order('scheduled_start').limit(200))
+  const now = new Date().toTimeString().slice(0, 8)
+  const seen = new Set()
+  const pick = rows.filter((r) => {
+    if ((r.rounds_total ?? 1) <= 1) return true
+    const key = `${r.template_id}:${r.branch_id}`
+    if (seen.has(key)) return false
+    const rounds = rows.filter((x) => x.template_id === r.template_id && x.branch_id === r.branch_id)
+    const current = rounds.find((x) => x.status !== 'completed' && x.status !== 'cancelled' && x.scheduled_end >= now) ?? rounds[rounds.length - 1]
+    if (current.id !== r.id) return false
+    seen.add(key)
+    return true
+  })
+  return pick.slice(0, 8)
+}
 
 export const getMyOpenTasks = (employeeId) =>
   unwrap(supabase.from('v_tasks').select('id, title, due_date, priority, status, is_late')

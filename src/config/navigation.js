@@ -12,7 +12,7 @@
 import {
   LayoutDashboard, Package, Tag, ArrowLeftRight, Truck, ClipboardCheck, ShoppingCart,
   DollarSign, Tags, CalendarClock, CheckSquare, Camera, ListTodo, Building, DoorOpen,
-  BarChart3, Building2, Layers, Users, Shield, KeyRound, LifeBuoy, History, FileSpreadsheet,
+  BarChart3, Building2, Layers, Users, Shield, KeyRound, LifeBuoy, History, FileSpreadsheet, Trash2, Map as MapIcon,
 } from 'lucide-react'
 import { P } from './permissions'
 
@@ -29,6 +29,7 @@ export const NAV_GROUPS = [
       { icon: Package,        label: 'Inventario',          path: '/inventory',           permission: P.VIEW_INVENTORY },
       { icon: Tag,            label: 'Consulta de precios', path: '/inventory/prices',    permission: P.VIEW_PRICES },
       { icon: ArrowLeftRight, label: 'Movimientos',         path: '/inventory/movements', permission: P.VIEW_INVENTORY },
+      { icon: Trash2,         label: 'Mermas',              path: '/waste',               permission: P.REGISTER_WASTE },
     ],
   },
   {
@@ -61,7 +62,7 @@ export const NAV_GROUPS = [
   {
     label: 'Análisis',
     items: [
-      { icon: BarChart3, label: 'Reportes', path: '/reports', permission: P.VIEW_REPORTS },
+      { icon: BarChart3, label: 'Estadísticas', path: '/reports', permission: P.VIEW_REPORTS },
     ],
   },
   {
@@ -69,6 +70,7 @@ export const NAV_GROUPS = [
     items: [
       { icon: ClipboardCheck, label: 'Plantillas checklist', path: '/checklists/templates', permission: P.MANAGE_CHECKLIST_TEMPLATES },
       { icon: Building2, label: 'Sucursales',    path: '/branches',    permission: P.MANAGE_BRANCHES },
+      { icon: MapIcon,   label: 'Zonas',         path: '/zones',       permission: P.MANAGE_BRANCHES },
       { icon: Layers,    label: 'Departamentos', path: '/departments', permission: P.MANAGE_BRANCHES },
       { icon: Users,     label: 'Empleados',     path: '/employees',   permission: P.MANAGE_EMPLOYEES },
       { icon: Shield,    label: 'Roles',         path: '/roles',       anyOf: [P.MANAGE_ROLES, P.MANAGE_EMPLOYEES] },

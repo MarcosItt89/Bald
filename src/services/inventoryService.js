@@ -17,7 +17,8 @@ const searchFilter = (text) => {
 export const getInventory = ({ branchId, search, status, departmentId } = {}) => {
   let q = byBranch(supabase.from('v_inventory').select('*'), branchId).order('product_name')
   if (search) q = q.or(searchFilter(search))
-  if (status) q = q.eq('status', status)
+  if (status === 'alerts') q = q.in('status', ['low', 'critical', 'out_of_stock'])
+  else if (status) q = q.eq('status', status)
   if (departmentId) q = q.eq('department_id', departmentId)
   return unwrap(q)
 }
@@ -29,7 +30,7 @@ export const lookupPrice = ({ branchId, search }) =>
 
 /** Catálogo (para selectores de producto en recibos, pedidos, precios). */
 export const searchProducts = (search, limit = 15) => {
-  let q = supabase.from('v_products').select('id, sku, name, unit, price, barcodes, department_id')
+  let q = supabase.from('v_products').select('id, sku, name, unit, price, cost, barcodes, department_id')
     .eq('status', 'active').order('name').limit(limit)
   if (search) {
     const t = ilikeTerm(search)
@@ -51,10 +52,17 @@ export const getMovements = ({ branchId, type, from, to, search, limit = 300 } =
   return unwrap(q)
 }
 
-export const createMovement = ({ branch_id, product_id, movement_type, quantity, reason }) =>
+export const createMovement = ({ branch_id, product_id, movement_type, quantity, reason, waste_reason }) =>
   unwrap(supabase.from('inventory_movements')
-    .insert({ branch_id, product_id, movement_type, quantity: Number(quantity), reason: reason || null })
+    .insert({ branch_id, product_id, movement_type, quantity: Number(quantity), reason: reason || null, waste_reason: waste_reason || null })
     .select().single())
+
+/** Mermas de un día (o rango) con su costo total. */
+export const getWaste = ({ branchId, from, to } = {}) =>
+  unwrap(byBranch(supabase.from('v_inventory_movements')
+    .select('id, created_at, product_id, product_name, sku, unit, quantity, unit_cost, total_cost, waste_reason, reason, created_by_name, branch_id, branch_name'), branchId)
+    .eq('movement_type', 'waste').gte('created_at', dayStart(from)).lte('created_at', dayEnd(to ?? from))
+    .order('created_at', { ascending: false }))
 
 export const updateInventorySettings = (id, { min_stock, max_stock, location, status }) =>
   unwrap(supabase.from('inventory')

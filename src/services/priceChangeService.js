@@ -17,10 +17,11 @@ export const getPriceChanges = ({ branchId, status, limit = 200 } = {}) => {
   return unwrap(q)
 }
 
-export const createPriceChange = ({ product_id, branch_id, new_price, effective_date, reason, requires_tag }) =>
+export const createPriceChange = ({ product_id, branch_id, zone_id, new_price, effective_date, reason, requires_tag }) =>
   unwrap(supabase.from('price_changes').insert({
     product_id,
     branch_id: branch_id || null,
+    zone_id: zone_id || null,
     new_price: Number(new_price),
     old_price: 0, // el trigger lo reemplaza por el precio actual real
     effective_date,

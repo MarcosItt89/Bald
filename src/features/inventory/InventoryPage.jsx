@@ -9,6 +9,7 @@
  *   - Exportar a CSV.
  */
 import { useCallback, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Download, Package, Plus } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useAsync } from '../../hooks/useAsync'
@@ -34,8 +35,9 @@ export default function InventoryPage() {
   const { branchFilter, hasPermission } = useAuth()
   const canManage = hasPermission(P.MANAGE_INVENTORY)
   const [search, setSearch] = useState('')
-  const [status, setStatus] = useState('')
-  const [departmentId, setDepartmentId] = useState('')
+  const [params] = useSearchParams()
+  const [status, setStatus] = useState(() => params.get('status') ?? '')
+  const [departmentId, setDepartmentId] = useState(() => params.get('dept') ?? '')
   const [selected, setSelected] = useState(null)
   const [creating, setCreating] = useState(false)
   const debounced = useDebouncedValue(search)
@@ -94,6 +96,7 @@ export default function InventoryPage() {
         </select>
         <select className="filter-select" value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="">Todos los estados</option>
+          <option value="alerts">Bajo mínimo (todos)</option>
           {toOptions(INVENTORY_STATUS).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       </div>

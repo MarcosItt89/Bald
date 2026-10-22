@@ -5,8 +5,8 @@
  * proveedor ya registró entrada en caseta, se liga su visita) y abre el
  * detalle para capturar productos.
  */
-import { useCallback, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useCallback, useMemo, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Truck } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useAsync } from '../../hooks/useAsync'
@@ -26,18 +26,24 @@ import Modal from '../../components/ui/Modal'
 import Input, { Textarea } from '../../components/ui/Input'
 import Select from '../../components/ui/Select'
 import { ErrorState } from '../../components/ui/Feedback'
+import FilterChip from '../../components/ui/FilterChip'
 
 export default function ReceivingPage() {
   const { branchFilter } = useAuth()
   const navigate = useNavigate()
-  const [tab, setTab] = useState('in_progress')
+  const [params] = useSearchParams()
+  const [tab, setTab] = useState(() => params.get('tab') ?? 'in_progress')
+  const [supplierId, setSupplierId] = useState(() => params.get('supplier') ?? '')
+  const [diff, setDiff] = useState(() => params.get('diff') ?? '')
   const [creating, setCreating] = useState(false)
 
   const load = useCallback(
     () => getReceivingOrders({ branchId: branchFilter, status: tab === 'all' ? undefined : tab }),
     [branchFilter, tab],
   )
-  const { data: rows = [], loading, error, reload } = useAsync(load)
+  const { data: all = [], loading, error, reload } = useAsync(load)
+  const rows = useMemo(() => all.filter((r) => (!supplierId || r.supplier_id === supplierId)
+    && (diff === '' || r.has_differences === (diff === '1'))), [all, supplierId, diff])
 
   const columns = [
     { key: 'folio', label: 'Folio', mono: true, sortable: true },
@@ -66,6 +72,12 @@ export default function ReceivingPage() {
         { key: 'cancelled', label: 'Cancelados' },
         { key: 'all', label: 'Todos' },
       ]} />
+      {(supplierId || diff) && (
+        <div className="filters">
+          {supplierId && <FilterChip label={`Proveedor: ${all.find((r) => r.supplier_id === supplierId)?.supplier_name ?? 'seleccionado'}`} onClear={() => setSupplierId('')} />}
+          {diff && <FilterChip label={diff === '1' ? 'Con diferencias' : 'Sin diferencias'} onClear={() => setDiff('')} />}
+        </div>
+      )}
 
       {error && <ErrorState error={error} onRetry={reload} />}
       <Card flush>

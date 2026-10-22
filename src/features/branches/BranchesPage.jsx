@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { Building2, Plus } from 'lucide-react'
 import { useAsync } from '../../hooks/useAsync'
 import { useToast } from '../../hooks/useToast'
-import { getBranches, saveBranch } from '../../services/organizationService'
+import { getBranches, getZones, saveBranch } from '../../services/organizationService'
 import { ACTIVE_STATUS, BRANCH_TYPES } from '../../constants/status'
 import PageHeader from '../../components/ui/PageHeader'
 import Card from '../../components/ui/Card'
@@ -20,6 +20,7 @@ const EMPTY = { code: '', name: '', branch_type: 'tienda', address: '', city: ''
 export default function BranchesPage() {
   const toast = useToast()
   const { data: rows = [], loading, error, reload } = useAsync(getBranches)
+  const { data: zones = [] } = useAsync(getZones)
   const [form, setForm] = useState(null)
   const [saving, setSaving] = useState(false)
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value })
@@ -42,6 +43,7 @@ export default function BranchesPage() {
           { key: 'branch_type', label: 'Tipo', render: (v) => BRANCH_TYPES[v] ?? v },
           { key: 'address', label: 'Dirección' },
           { key: 'city', label: 'Ciudad' },
+          { key: 'zone', label: 'Zona', render: (v) => v?.name ?? <span className="text-muted">—</span> },
           { key: 'manager', label: 'Gerente', render: (v) => v?.full_name ?? '—' },
           { key: 'status', label: 'Estado', render: (v) => <StatusBadge statusMap={ACTIVE_STATUS} value={v} /> },
         ]} />
@@ -61,6 +63,9 @@ export default function BranchesPage() {
               <Input label="Teléfono" value={form.phone ?? ''} onChange={set('phone')} />
               <Select label="Estado" value={form.status} onChange={set('status')} options={[{ value: 'active', label: 'Activa' }, { value: 'inactive', label: 'Inactiva' }]} />
             </div>
+            <Select label="Zona" value={form.zone_id ?? ''} placeholder="Sin zona" onChange={set('zone_id')}
+              options={zones.filter((z) => z.is_active || z.id === form.zone_id).map((z) => ({ value: z.id, label: `${z.code} · ${z.name}` }))}
+              hint="Los jefes de zona (p. ej. Jefe de Escáner) ven las sucursales de sus zonas." />
           </form>
         )}
       </Modal>

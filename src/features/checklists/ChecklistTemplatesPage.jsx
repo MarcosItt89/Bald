@@ -24,9 +24,14 @@ import { ErrorState } from '../../components/ui/Feedback'
 const opts = (map) => Object.entries(map).map(([value, label]) => ({ value, label }))
 const EMPTY = {
   title: '', description: '', department_id: '', shift: 'apertura', start_time: '07:00', end_time: '09:00',
-  frequency: 'daily', requires_evidence: false, is_active: true,
+  frequency: 'daily', requires_evidence: false, is_active: true, repeat_every_minutes: null, repeat_until: null,
 }
-const newQuestion = () => ({ text: '', answer_type: 'yes_no', is_required: true, requires_photo: false, options: [] })
+const REPEAT_OPTIONS = [
+  { value: '', label: 'Una vez al día' }, { value: '30', label: 'Cada 30 min' }, { value: '60', label: 'Cada 1 h' },
+  { value: '120', label: 'Cada 2 h' }, { value: '180', label: 'Cada 3 h' }, { value: '240', label: 'Cada 4 h' },
+]
+const newQuestion = () => ({ text: '', answer_type: 'yes_no', is_required: true, requires_photo: false, is_critical: false, options: [], min_value: null, max_value: null, unit: '', equipment_name: '' })
+const numOrNull = (v) => (v === '' || v == null ? null : Number(v))
 
 export default function ChecklistTemplatesPage() {
   const toast = useToast()
@@ -80,7 +85,9 @@ export default function ChecklistTemplatesPage() {
           { key: 'department', label: 'Departamento', render: (v) => v?.name ?? 'General' },
           { key: 'shift', label: 'Turno', render: (v) => SHIFTS[v] },
           { key: 'start_time', label: 'Horario', render: (v, r) => `${formatTime(v)}–${formatTime(r.end_time)}` },
-          { key: 'frequency', label: 'Frecuencia', render: (v) => FREQUENCIES[v] },
+          { key: 'frequency', label: 'Frecuencia', render: (v, r) => (r.repeat_every_minutes
+            ? `${FREQUENCIES[v]} · cada ${r.repeat_every_minutes >= 60 ? `${r.repeat_every_minutes / 60} h` : `${r.repeat_every_minutes} min`}`
+            : FREQUENCIES[v]) },
           { key: 'questions', label: 'Preguntas', render: (v) => v?.[0]?.count ?? 0 },
           { key: 'is_active', label: 'Estado', render: (v, r) => (
             <button className="link-btn" onClick={(e) => { e.stopPropagation(); toggle(r) }}>
@@ -103,7 +110,15 @@ export default function ChecklistTemplatesPage() {
               <Select label="Turno" value={editing.shift} options={opts(SHIFTS)} onChange={(e) => setEditing({ ...editing, shift: e.target.value })} />
               <Select label="Frecuencia" value={editing.frequency} options={opts(FREQUENCIES)} onChange={(e) => setEditing({ ...editing, frequency: e.target.value })} />
               <Input label="Hora inicio" type="time" value={editing.start_time} onChange={(e) => setEditing({ ...editing, start_time: e.target.value })} />
-              <Input label="Hora límite" type="time" value={editing.end_time} onChange={(e) => setEditing({ ...editing, end_time: e.target.value })} />
+              <Input label="Hora límite" type="time" value={editing.end_time} onChange={(e) => setEditing({ ...editing, end_time: e.target.value })}
+                hint={editing.repeat_every_minutes ? 'De la primera ronda; cada ronda dura lo mismo' : undefined} />
+              <Select label="Repetir" value={editing.repeat_every_minutes ? String(editing.repeat_every_minutes) : ''} options={REPEAT_OPTIONS}
+                onChange={(e) => setEditing({ ...editing, repeat_every_minutes: e.target.value ? Number(e.target.value) : null, repeat_until: e.target.value ? editing.repeat_until : null })} />
+              {editing.repeat_every_minutes && (
+                <Input label="Hasta (último inicio)" type="time" value={editing.repeat_until?.slice(0, 5) ?? ''}
+                  onChange={(e) => setEditing({ ...editing, repeat_until: e.target.value || null })}
+                  hint="Vacío = hasta el cierre de la sucursal" />
+              )}
               <label className="checkbox"><input type="checkbox" checked={editing.requires_evidence}
                 onChange={(e) => setEditing({ ...editing, requires_evidence: e.target.checked })} /> Requiere evidencia</label>
             </div>
@@ -119,7 +134,18 @@ export default function ChecklistTemplatesPage() {
                   <input className="form-input" placeholder="Opciones separadas por coma" value={(q.options ?? []).join(', ')}
                     onChange={(e) => setQ(i, { options: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })} />
                 )}
+                {q.answer_type === 'number' && (
+                  <div className="range-editor">
+                    <input className="form-input" placeholder="Equipo (ej. Cámara de carnes)" value={q.equipment_name ?? ''} onChange={(e) => setQ(i, { equipment_name: e.target.value })} />
+                    <input className="form-input" type="number" step="any" placeholder="Mín." value={q.min_value ?? ''} onChange={(e) => setQ(i, { min_value: numOrNull(e.target.value) })} />
+                    <input className="form-input" type="number" step="any" placeholder="Máx." value={q.max_value ?? ''} onChange={(e) => setQ(i, { max_value: numOrNull(e.target.value) })} />
+                    <input className="form-input" placeholder="Unidad (°C)" value={q.unit ?? ''} onChange={(e) => setQ(i, { unit: e.target.value })} />
+                  </div>
+                )}
                 <label className="checkbox"><input type="checkbox" checked={q.is_required} onChange={(e) => setQ(i, { is_required: e.target.checked })} /> Oblig.</label>
+                {q.answer_type === 'yes_no' && (
+                  <label className="checkbox" title="Un «No» crea una tarea urgente y avisa al gerente"><input type="checkbox" checked={!!q.is_critical} onChange={(e) => setQ(i, { is_critical: e.target.checked })} /> Crítica</label>
+                )}
                 <label className="checkbox"><input type="checkbox" checked={q.requires_photo || q.answer_type === 'photo'}
                   disabled={q.answer_type === 'photo'} onChange={(e) => setQ(i, { requires_photo: e.target.checked })} /> Foto</label>
                 <button type="button" className="icon-btn" onClick={() => move(i, -1)} aria-label="Subir"><ArrowUp size={14} /></button>

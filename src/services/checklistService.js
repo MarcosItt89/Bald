@@ -14,7 +14,7 @@
 import { supabase, unwrap } from '../lib/supabaseClient'
 import { byBranch } from '../lib/queryHelpers'
 
-export const getRuns = ({ branchId, date, from, to, status, departmentId } = {}) => {
+export const getRuns = ({ branchId, date, from, to, status, departmentId, shift, templateId } = {}) => {
   let q = byBranch(supabase.from('v_checklist_runs').select('*'), branchId)
     .order('scheduled_date', { ascending: false }).order('scheduled_start')
   if (date) q = q.eq('scheduled_date', date)
@@ -22,6 +22,8 @@ export const getRuns = ({ branchId, date, from, to, status, departmentId } = {})
   if (to) q = q.lte('scheduled_date', to)
   if (status) q = q.eq('status', status)
   if (departmentId) q = q.eq('department_id', departmentId)
+  if (shift) q = q.eq('shift', shift)
+  if (templateId) q = q.eq('template_id', templateId)
   return unwrap(q)
 }
 
@@ -99,6 +101,11 @@ export async function saveTemplate({ department, questions: _count, ...template 
     options: q.answer_type === 'option' ? q.options : null,
     is_required: q.is_required,
     requires_photo: q.answer_type === 'photo' ? true : q.requires_photo,
+    is_critical: q.answer_type === 'yes_no' ? !!q.is_critical : false,
+    min_value: q.answer_type === 'number' ? q.min_value ?? null : null,
+    max_value: q.answer_type === 'number' ? q.max_value ?? null : null,
+    unit: q.answer_type === 'number' ? q.unit || null : null,
+    equipment_name: q.answer_type === 'number' ? q.equipment_name || null : null,
     is_active: true,
   }))
   const updates = rows.filter((r) => r.id)

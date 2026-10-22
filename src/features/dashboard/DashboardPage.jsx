@@ -102,7 +102,7 @@ export default function DashboardPage() {
               {runs.data?.map((r) => (
                 <li key={r.id} className="list-item">
                   <div>
-                    <span className="td-bold">{r.title}</span>
+                    <span className="td-bold">{r.title}{r.rounds_total > 1 && <span className="text-muted"> · ronda {r.round_no} de {r.rounds_total}</span>}</span>
                     <span className="list-meta">{r.department_name} · {formatTime(r.scheduled_start)}–{formatTime(r.scheduled_end)}</span>
                   </div>
                   <StatusBadge statusMap={CHECKLIST_RUN_STATUS} value={r.status} />

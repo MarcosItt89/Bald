@@ -4,8 +4,15 @@
  */
 import { supabase, unwrap } from './supabaseClient'
 
-/** Aplica el filtro de sucursal solo si hay una seleccionada (null = todas las visibles). */
-export const byBranch = (query, branchId) => (branchId ? query.eq('branch_id', branchId) : query)
+const NO_ID = '00000000-0000-0000-0000-000000000000'
+
+/**
+ * Filtro de sucursal: null = todas las visibles; un id = esa sucursal;
+ * un arreglo de ids = esas sucursales (p. ej. las de una zona).
+ */
+export const byBranch = (query, branchId, column = 'branch_id') => (
+  Array.isArray(branchId) ? query.in(column, branchId.length ? branchId : [NO_ID])
+    : branchId ? query.eq(column, branchId) : query)
 
 /**
  * Limpia un texto de búsqueda para usarlo dentro de .or('col.ilike.%x%').

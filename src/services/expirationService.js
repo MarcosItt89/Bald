@@ -7,7 +7,6 @@
  */
 import { supabase, unwrap } from '../lib/supabaseClient'
 import { byBranch, emptyToNull } from '../lib/queryHelpers'
-import { createMovement } from './inventoryService'
 
 export const getExpirations = ({ branchId, status, maxDays } = {}) => {
   let q = byBranch(supabase.from('v_expirations').select('*'), branchId).order('expiration_date')
@@ -26,19 +25,8 @@ export const updateExpirationStatus = (id, status, action_notes) =>
     .update({ status, action_notes: action_notes || null }).eq('id', id).select().single())
 
 /**
- * Descuenta la cantidad del inventario como merma y después marca el lote
- * como retirado. Primero el movimiento: si falla (p. ej. stock insuficiente)
- * el lote no queda marcado como retirado sin haber afectado el inventario.
+ * Marca el lote como retirado. La merma (motivo «Caducado») la registra la
+ * base de datos (trigger trg_expiration_waste, 0014) en la misma operación,
+ * hasta la existencia disponible y una sola vez por lote.
  */
-export async function withdrawAsWaste(lot, notes) {
-  if (Number(lot.quantity) > 0) {
-    await createMovement({
-      branch_id: lot.branch_id,
-      product_id: lot.product_id,
-      movement_type: 'waste',
-      quantity: lot.quantity,
-      reason: `Merma por caducidad · lote ${lot.lot ?? 's/n'}`,
-    })
-  }
-  await updateExpirationStatus(lot.id, 'withdrawn', notes)
-}
+export const withdrawAsWaste = (lot, notes) => updateExpirationStatus(lot.id, 'withdrawn', notes)

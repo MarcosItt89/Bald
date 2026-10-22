@@ -1388,10 +1388,14 @@ begin
   from public.checklist_templates t
   join public.branches b on b.company_id = t.company_id and b.status = 'active'
   where t.company_id = p_company_id and t.is_active
+    -- Las rondas de un día se generan juntas; si ya hay corridas de ese día no se agregan más
+    -- (así cambiar la hora o la repetición de una plantilla aplica desde el día siguiente).
+    and not exists (select 1 from public.checklist_runs x
+                    where x.template_id = t.id and x.branch_id = b.id and x.scheduled_date = p_date)
     and (t.frequency = 'daily'
       or (t.frequency = 'weekdays' and extract(isodow from p_date) < 6)
       or (t.frequency = 'weekly' and extract(dow from p_date) = t.weekday))
-  on conflict (template_id, branch_id, scheduled_date) do nothing;
+  on conflict do nothing;
   get diagnostics v_rows = row_count;
   return v_rows;
 end $$;
@@ -1913,6 +1917,11 @@ grant execute on function public.report_price_difference(uuid, uuid, numeric, te
 -- =============================================================================
 
 -- Empleados con rol, sucursal y departamento.
+-- Re-ejecución: migraciones posteriores agregan columnas a estas vistas o a sus
+-- tablas (create or replace no permite quitar ni reordenar columnas), así que se
+-- eliminan y se recrean; 0008+ vuelven a crear sus versiones extendidas.
+drop view if exists public.v_employees, public.v_products, public.v_inventory, public.v_inventory_movements, public.v_supplier_visits, public.v_receiving_orders, public.v_receiving_items, public.v_price_changes, public.v_shelf_tags, public.v_expirations, public.v_checklist_runs, public.v_evidence, public.v_orders, public.v_order_items, public.v_tasks, public.v_support_tickets, public.v_support_ticket_messages, public.v_audit_logs cascade;
+
 create or replace view public.v_employees with (security_invoker = on) as
 select e.id, e.user_id, e.company_id, e.branch_id, e.department_id, e.role_id,
        e.employee_code, e.username, e.full_name, e.position, e.email, e.phone,
@@ -2712,6 +2721,1527 @@ create trigger trg_checklist_run_cancel before update on public.checklist_runs
   for each row execute function public.tg_checklist_run_cancel();
 
 
+-- >>>>>>>>>>>>>>>> migrations/0011_soporte_temas_sla.sql <<<<<<<<<<<<<<<<
+-- =============================================================================
+-- OPERALIA · 0011 · SOPORTE: TEMAS, SLA, RESPUESTAS PREDEFINIDAS Y VISIBILIDAD
+-- -----------------------------------------------------------------------------
+-- Extiende support_tickets (sin tablas paralelas):
+--   * Categorías nuevas: network, pos, printer, scanner.
+--   * support_topics: catálogo de temas con prioridad, SLA y autoayuda.
+--   * Columnas: topic_id, location, blocks_operation, due_at, department_id.
+--     due_at = created_at + sla_hours (la mitad si blocks_operation).
+--   * support_canned_responses: respuestas rápidas para soporte.
+--   * RLS: empleado → propios; jefes/supervisores → su departamento;
+--     gerente → su sucursal; soporte/admin → todos. Notas internas solo soporte.
+-- Re-ejecutable.
+-- =============================================================================
+
+alter table public.support_tickets drop constraint if exists support_tickets_category_check;
+alter table public.support_tickets add constraint support_tickets_category_check
+  check (category in ('bug','access','data','feature','training','hardware',
+                      'network','pos','printer','scanner','other'));
+
+create table if not exists public.support_topics (
+  id                uuid primary key default gen_random_uuid(),
+  company_id        uuid not null references public.companies(id) on delete cascade,
+  code              text not null,
+  name              text not null,
+  category          text not null default 'other'
+                    check (category in ('bug','access','data','feature','training','hardware',
+                                        'network','pos','printer','scanner','other')),
+  default_priority  text not null default 'medium' check (default_priority in ('low','medium','high','critical')),
+  sla_hours         numeric(6,2) not null default 24 check (sla_hours > 0),
+  self_help         text,
+  sort_order        int not null default 0,
+  is_active         boolean not null default true,
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now(),
+  unique (company_id, code)
+);
+
+alter table public.support_tickets
+  add column if not exists topic_id         uuid references public.support_topics(id) on delete set null,
+  add column if not exists location         text,
+  add column if not exists blocks_operation boolean not null default false,
+  add column if not exists due_at           timestamptz,
+  add column if not exists department_id    uuid references public.departments(id) on delete set null;
+
+create index if not exists tickets_branch_dept_idx on public.support_tickets (branch_id, department_id);
+create index if not exists tickets_due_idx         on public.support_tickets (company_id, due_at) where status not in ('resolved','closed');
+create index if not exists tickets_created_by_idx  on public.support_tickets (created_by);
+
+create table if not exists public.support_canned_responses (
+  id          uuid primary key default gen_random_uuid(),
+  company_id  uuid not null references public.companies(id) on delete cascade,
+  title       text not null,
+  body        text not null,
+  is_active   boolean not null default true,
+  created_by  uuid references public.employees(id) on delete set null,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now(),
+  unique (company_id, title)
+);
+
+drop trigger if exists trg_updated_at on public.support_topics;
+create trigger trg_updated_at before update on public.support_topics
+  for each row execute function public.tg_set_updated_at();
+drop trigger if exists trg_updated_at on public.support_canned_responses;
+create trigger trg_updated_at before update on public.support_canned_responses
+  for each row execute function public.tg_set_updated_at();
+drop trigger if exists trg_actor on public.support_canned_responses;
+create trigger trg_actor before insert on public.support_canned_responses
+  for each row execute function public.tg_set_actor('created_by');
+
+-- ─── SLA Y DATOS DERIVADOS DEL TEMA ─────────────────────────────────────────
+create or replace function public.tg_ticket_sla()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  v_topic public.support_topics%rowtype;
+  v_hours numeric;
+begin
+  if new.topic_id is not null then
+    select * into v_topic from public.support_topics
+     where id = new.topic_id and company_id = new.company_id;
+    if not found then raise exception 'El tema de soporte no existe'; end if;
+  end if;
+
+  if tg_op = 'INSERT' then
+    new.department_id := coalesce(new.department_id,
+      (select e.department_id from public.employees e where e.id = new.created_by),
+      public.auth_department_id());
+    if v_topic.id is not null then
+      new.category := v_topic.category;
+      if new.priority = 'medium' then new.priority := v_topic.default_priority; end if;
+    end if;
+    if new.blocks_operation and new.priority in ('low','medium') then
+      new.priority := 'high';
+    end if;
+  end if;
+
+  if tg_op = 'INSERT'
+     or new.topic_id is distinct from old.topic_id
+     or new.blocks_operation is distinct from old.blocks_operation
+     or new.priority is distinct from old.priority then
+    v_hours := coalesce(v_topic.sla_hours,
+      case new.priority when 'critical' then 4 when 'high' then 8 when 'medium' then 24 else 72 end);
+    if new.blocks_operation then v_hours := v_hours / 2; end if;
+    new.due_at := coalesce(new.created_at, now()) + make_interval(secs => (v_hours * 3600)::double precision);
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists trg_ticket_sla on public.support_tickets;
+create trigger trg_ticket_sla before insert or update on public.support_tickets
+  for each row execute function public.tg_ticket_sla();
+
+-- ─── VISIBILIDAD ────────────────────────────────────────────────────────────
+create or replace function public.can_view_ticket(p_created_by uuid, p_branch_id uuid, p_department_id uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select p_created_by = public.auth_employee_id()
+      or public.has_permission('manage_tickets')
+      or (public.auth_role_scope() in ('company','branch','department')
+          and public.can_access_department(p_branch_id, p_department_id))
+$$;
+
+drop policy if exists tickets_select on public.support_tickets;
+create policy tickets_select on public.support_tickets for select to authenticated
+  using (company_id = (select public.auth_company_id())
+         and public.can_view_ticket(created_by, branch_id, department_id));
+
+drop policy if exists ticket_messages_select on public.support_ticket_messages;
+create policy ticket_messages_select on public.support_ticket_messages for select to authenticated
+  using (exists (select 1 from public.support_tickets t
+                 where t.id = ticket_id and t.company_id = (select public.auth_company_id())
+                   and public.can_view_ticket(t.created_by, t.branch_id, t.department_id))
+         and (not is_internal or (select public.has_permission('manage_tickets'))));
+
+alter table public.support_topics enable row level security;
+drop policy if exists support_topics_select on public.support_topics;
+create policy support_topics_select on public.support_topics for select to authenticated
+  using (company_id = (select public.auth_company_id())
+         and (is_active or (select public.has_permission('manage_tickets'))));
+drop policy if exists support_topics_write on public.support_topics;
+create policy support_topics_write on public.support_topics for all to authenticated
+  using (company_id = (select public.auth_company_id()) and (select public.has_permission('manage_tickets')))
+  with check (company_id = (select public.auth_company_id()) and (select public.has_permission('manage_tickets')));
+
+alter table public.support_canned_responses enable row level security;
+drop policy if exists canned_responses_all on public.support_canned_responses;
+create policy canned_responses_all on public.support_canned_responses for all to authenticated
+  using (company_id = (select public.auth_company_id()) and (select public.has_permission('manage_tickets')))
+  with check (company_id = (select public.auth_company_id()) and (select public.has_permission('manage_tickets')));
+
+-- ─── VISTA ──────────────────────────────────────────────────────────────────
+drop view if exists public.v_support_tickets;
+create view public.v_support_tickets with (security_invoker = on) as
+select t.*, b.name as branch_name, d.name as department_name,
+       tp.name as topic_name, tp.code as topic_code,
+       ec.full_name as created_by_name, ec.position as created_by_position,
+       ea.full_name as assigned_to_name,
+       (t.due_at is not null and t.due_at < now() and t.status not in ('resolved','closed')) as is_overdue,
+       (select count(*) from public.support_ticket_messages m where m.ticket_id = t.id and not m.is_internal) as messages_count,
+       (select max(m.created_at) from public.support_ticket_messages m where m.ticket_id = t.id) as last_message_at
+from public.support_tickets t
+left join public.branches b      on b.id = t.branch_id
+left join public.departments d   on d.id = t.department_id
+left join public.support_topics tp on tp.id = t.topic_id
+left join public.employees ec    on ec.id = t.created_by
+left join public.employees ea    on ea.id = t.assigned_to;
+
+grant select, insert, update, delete on public.support_topics, public.support_canned_responses to authenticated;
+grant select on public.v_support_tickets to authenticated;
+grant execute on function public.can_view_ticket(uuid, uuid, uuid) to authenticated;
+
+-- ─── SEMILLA (por cada empresa existente) ───────────────────────────────────
+insert into public.role_permissions (role_id, permission_code)
+select r.id, 'create_tickets' from public.roles r
+where exists (select 1 from public.permissions p where p.code = 'create_tickets')
+on conflict do nothing;
+
+insert into public.support_topics (company_id, code, name, category, default_priority, sla_hours, self_help, sort_order)
+select c.id, v.code, v.name, v.category, v.priority, v.sla, v.help, v.ord
+from public.companies c
+cross join (values
+  ('no_signal_pos', 'Sin señal en caja', 'network', 'high', 4,
+   E'1. Revisa que el cable de red esté conectado en la terminal y en la pared.\n2. Verifica si otras cajas tienen señal.\n3. Apaga y enciende el módem o switch del área (espera 1 minuto).\n4. Si usas WiFi, confirma que estés en la red de la tienda.', 1),
+  ('slow_wifi', 'WiFi lento en piso de venta', 'network', 'medium', 24,
+   E'1. Acércate al repetidor más cercano y vuelve a probar.\n2. Olvida la red y vuelve a conectarte.\n3. Cierra apps que descarguen en segundo plano.\n4. Anota en qué pasillo o zona falla.', 2),
+  ('repeater_down', 'Repetidor o antena sin conexión', 'network', 'high', 8,
+   E'1. Revisa que el repetidor tenga luz encendida.\n2. Desconéctalo de la corriente 10 segundos y vuelve a conectarlo.\n3. Verifica que nadie lo haya movido o desconectado.', 3),
+  ('pos_no_power', 'Terminal de cobro no enciende', 'pos', 'critical', 2,
+   E'1. Revisa que el cable de corriente esté bien conectado.\n2. Prueba en otro contacto o regulador.\n3. Mantén presionado el botón de encendido 10 segundos.\n4. Si hay otra caja libre, usa esa mientras tanto.', 4),
+  ('ticket_printer', 'Impresora de tickets', 'printer', 'high', 8,
+   E'1. Verifica que tenga papel y que el rollo esté bien colocado.\n2. Cierra bien la tapa.\n3. Apágala y enciéndela.\n4. Revisa que el cable USB esté conectado.', 5),
+  ('scanner_no_read', 'Lector no lee', 'scanner', 'medium', 8,
+   E'1. Limpia la ventana del lector con un paño seco.\n2. Desconecta y vuelve a conectar el cable.\n3. Prueba con otro código de barras.\n4. Mientras tanto captura el código a mano.', 6),
+  ('scale_no_connect', 'Báscula no conecta', 'scanner', 'high', 8,
+   E'1. Revisa que la báscula esté encendida y en cero.\n2. Revisa el cable entre la báscula y la caja.\n3. Reinicia la báscula y luego la aplicación de caja.', 7),
+  ('cant_login', 'No puedo iniciar sesión', 'access', 'high', 4,
+   E'1. Revisa que tu usuario esté bien escrito (sin espacios).\n2. Revisa mayúsculas en la contraseña.\n3. Prueba en otro dispositivo.\n4. Pide a tu jefe que confirme que tu cuenta está activa.', 8),
+  ('app_error', 'Error en la app', 'bug', 'medium', 24,
+   E'1. Recarga la página.\n2. Cierra sesión y vuelve a entrar.\n3. Toma una foto o captura del mensaje de error.', 9),
+  ('feature_request', 'Solicitud de mejora', 'feature', 'low', 120,
+   E'Describe qué te gustaría mejorar y cómo te ayudaría en tu trabajo diario.', 10)
+) as v(code, name, category, priority, sla, help, ord)
+on conflict (company_id, code) do nothing;
+
+insert into public.support_canned_responses (company_id, title, body)
+select c.id, v.title, v.body
+from public.companies c
+cross join (values
+  ('Recibido, en revisión', 'Hola, recibimos tu reporte y ya lo estamos revisando. Te avisamos en cuanto tengamos novedades.'),
+  ('Necesitamos más información', 'Para ayudarte mejor, ¿nos puedes enviar una foto del problema y decirnos desde cuándo ocurre?'),
+  ('Técnico en camino', 'Un técnico va en camino a tu sucursal. Por favor mantén el equipo como está para poder revisarlo.'),
+  ('Prueba reiniciar', 'Por favor apaga el equipo, espera 30 segundos y vuelve a encenderlo. Cuéntanos si el problema continúa.'),
+  ('Resuelto', 'El problema quedó resuelto. Si vuelve a ocurrir, reabre este ticket y lo atendemos de inmediato.')
+) as v(title, body)
+on conflict (company_id, title) do nothing;
+
+
+-- >>>>>>>>>>>>>>>> migrations/0012_propietario_contrasenas_checklists.sql <<<<<<<<<<<<<<<<
+-- =============================================================================
+-- OPERALIA · 0012 · PROPIETARIO, CONTRASEÑAS, CHECKLISTS DIARIOS
+-- -----------------------------------------------------------------------------
+-- Sin tablas nuevas. Incluye:
+--   1. employees.is_owner: gatopelon es el administrador más alto.
+--      Nadie más puede editarlo, y solo él gestiona a otros administradores.
+--      El rol admin siempre tiene todos los permisos.
+--   2. Contraseñas:
+--      * admin_set_password: admin o gerente pone una contraseña temporal
+--        (o crea la cuenta si el empleado no tiene); al entrar se pide cambiarla.
+--      * request_password_reset: "Olvidé mi contraseña" desde el login avisa
+--        al propietario, administradores y gerente de la sucursal.
+--   3. pg_cron: genera los checklists de cada día automáticamente (cada hora).
+--   4. Sucursal Sur activa y 4 checklists nuevos.
+-- Re-ejecutable.
+-- =============================================================================
+
+-- ─── 1. PROPIETARIO ─────────────────────────────────────────────────────────
+alter table public.employees add column if not exists is_owner boolean not null default false;
+create unique index if not exists employees_one_owner_idx on public.employees (company_id) where is_owner;
+
+do $$
+declare v_prev text;
+begin
+  if not exists (select 1 from public.employees where is_owner) then
+    v_prev := public.set_bypass('on');
+    update public.employees set is_owner = true where username = 'gatopelon';
+    perform public.set_bypass(v_prev);
+  end if;
+end $$;
+
+create or replace function public.auth_is_owner()
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce((select e.is_owner from public.employees e
+                   where e.user_id = auth.uid() and e.status = 'active' limit 1), false)
+$$;
+grant execute on function public.auth_is_owner() to authenticated;
+
+create or replace function public.tg_employee_owner_guard()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_admin_role boolean;
+begin
+  if public.is_system_context() then
+    return case when tg_op = 'DELETE' then old else new end;
+  end if;
+
+  if tg_op = 'DELETE' then
+    if old.is_owner then raise exception 'La cuenta propietaria no se puede eliminar'; end if;
+    return old;
+  end if;
+
+  if (tg_op = 'INSERT' and new.is_owner) or (tg_op = 'UPDATE' and new.is_owner is distinct from old.is_owner) then
+    raise exception 'La propiedad de la cuenta solo se transfiere desde la base de datos';
+  end if;
+
+  if tg_op = 'UPDATE' and old.is_owner and old.user_id is distinct from auth.uid() then
+    raise exception 'Solo el propietario puede modificar su propia cuenta';
+  end if;
+
+  select exists (select 1 from public.roles r where r.code = 'admin'
+                 and (r.id = new.role_id or (tg_op = 'UPDATE' and r.id = old.role_id)))
+    into v_admin_role;
+  if v_admin_role and not public.auth_is_owner()
+     and (tg_op = 'INSERT' or old.user_id is distinct from auth.uid()) then
+    raise exception 'Solo el propietario puede dar de alta o modificar administradores';
+  end if;
+
+  return new;
+end $$;
+
+drop trigger if exists trg_employee_owner_guard on public.employees;
+create trigger trg_employee_owner_guard before insert or update or delete on public.employees
+  for each row execute function public.tg_employee_owner_guard();
+
+create or replace function public.tg_admin_role_protect()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if public.is_system_context() then return case when tg_op = 'DELETE' then old else new end; end if;
+
+  if tg_table_name = 'role_permissions' then
+    if exists (select 1 from public.roles r where r.id = old.role_id and r.code = 'admin') then
+      raise exception 'El rol Administrador siempre conserva todos los permisos';
+    end if;
+    return old;
+  end if;
+
+  if tg_table_name = 'employee_permissions' then
+    if exists (select 1 from public.employees e where e.id = new.employee_id and e.is_owner) and not new.is_granted then
+      raise exception 'No se pueden revocar permisos al propietario';
+    end if;
+    return new;
+  end if;
+
+  if tg_op = 'DELETE' and old.code = 'admin' then raise exception 'El rol Administrador no se puede eliminar'; end if;
+  if tg_op = 'UPDATE' and old.code = 'admin' and (new.code <> old.code or new.scope <> old.scope) then
+    raise exception 'El rol Administrador no se puede cambiar de código ni de alcance';
+  end if;
+  return case when tg_op = 'DELETE' then old else new end;
+end $$;
+
+drop trigger if exists trg_admin_role_permissions on public.role_permissions;
+create trigger trg_admin_role_permissions before delete on public.role_permissions
+  for each row execute function public.tg_admin_role_protect();
+drop trigger if exists trg_owner_permissions on public.employee_permissions;
+create trigger trg_owner_permissions before insert or update on public.employee_permissions
+  for each row execute function public.tg_admin_role_protect();
+drop trigger if exists trg_admin_role on public.roles;
+create trigger trg_admin_role before update or delete on public.roles
+  for each row execute function public.tg_admin_role_protect();
+
+create or replace function public.tg_permission_to_admin()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  insert into public.role_permissions (role_id, permission_code)
+  select r.id, new.code from public.roles r where r.code = 'admin'
+  on conflict do nothing;
+  return null;
+end $$;
+drop trigger if exists trg_permission_to_admin on public.permissions;
+create trigger trg_permission_to_admin after insert on public.permissions
+  for each row execute function public.tg_permission_to_admin();
+
+insert into public.role_permissions (role_id, permission_code)
+select r.id, p.code from public.roles r cross join public.permissions p
+where r.code = 'admin'
+on conflict do nothing;
+
+create or replace view public.v_employees with (security_invoker = on) as
+select e.id, e.user_id, e.company_id, e.branch_id, e.department_id, e.role_id,
+       e.employee_code, e.username, e.full_name, e.position, e.email, e.phone,
+       e.status, e.hired_at, e.created_at, e.updated_at,
+       (e.user_id is not null) as has_account,
+       r.code as role_code, r.name as role_name, r.scope as role_scope,
+       b.name as branch_name, d.name as department_name, d.color as department_color,
+       e.is_owner
+from public.employees e
+join public.roles r on r.id = e.role_id
+left join public.branches b on b.id = e.branch_id
+left join public.departments d on d.id = e.department_id;
+grant select on public.v_employees to authenticated;
+
+-- ─── 2. CONTRASEÑAS ─────────────────────────────────────────────────────────
+create or replace function public.admin_set_password(p_employee_id uuid, p_password text)
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
+declare
+  t       public.employees%rowtype;
+  v_scope text;
+  v_email text;
+  v_user  uuid;
+  v_prev  text;
+  v_new   boolean := false;
+begin
+  if not public.has_permission('manage_employees') then
+    raise exception 'No tienes permiso para gestionar contraseñas';
+  end if;
+  if coalesce(length(p_password), 0) < 8 then
+    raise exception 'La contraseña debe tener al menos 8 caracteres';
+  end if;
+
+  select * into t from public.employees where id = p_employee_id and company_id = public.auth_company_id();
+  if not found then raise exception 'Empleado no encontrado'; end if;
+  if t.status <> 'active' then raise exception 'El empleado está inactivo'; end if;
+
+  select r.scope into v_scope from public.roles r where r.id = t.role_id;
+  if t.user_id = auth.uid() then
+    raise exception 'Para tu propia cuenta usa "Cambiar contraseña" en tu menú';
+  end if;
+  if t.is_owner then raise exception 'La contraseña del propietario solo la cambia él mismo'; end if;
+  if v_scope = 'company' and not public.auth_is_owner() then
+    raise exception 'Solo el propietario restablece contraseñas de administradores, soporte o auditoría';
+  end if;
+  if public.auth_role_scope() <> 'company' and t.branch_id is distinct from public.auth_branch_id() then
+    raise exception 'Solo puedes gestionar empleados de tu sucursal';
+  end if;
+
+  if t.user_id is null then
+    v_prev := public.set_bypass('on');
+    v_email := lower(t.username) || '@operalia.local';
+    select id into v_user from auth.users where email = v_email;
+    if v_user is null then
+      v_user := gen_random_uuid();
+      v_new := true;
+      insert into auth.users (
+        instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+        raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+        confirmation_token, email_change, email_change_token_new, recovery_token)
+      values (
+        '00000000-0000-0000-0000-000000000000', v_user, 'authenticated', 'authenticated', v_email,
+        crypt(p_password, gen_salt('bf')), now(),
+        '{"provider":"email","providers":["email"]}'::jsonb,
+        jsonb_build_object('username', lower(t.username), 'full_name', t.full_name, 'must_change_password', true),
+        now(), now(), '', '', '', '');
+      insert into auth.identities (id, user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
+      values (gen_random_uuid(), v_user, v_user::text,
+              jsonb_build_object('sub', v_user::text, 'email', v_email, 'email_verified', true),
+              'email', now(), now(), now());
+    end if;
+    update public.employees set user_id = v_user, email = coalesce(email, v_email) where id = t.id;
+    perform public.set_bypass(v_prev);
+  else
+    v_user := t.user_id;
+  end if;
+
+  if not v_new then
+    update auth.users
+       set encrypted_password = crypt(p_password, gen_salt('bf')),
+           raw_user_meta_data = coalesce(raw_user_meta_data, '{}'::jsonb) || '{"must_change_password": true}'::jsonb,
+           email_confirmed_at = coalesce(email_confirmed_at, now()),
+           updated_at = now()
+     where id = v_user;
+  end if;
+
+  update public.notifications set is_read = true
+   where company_id = t.company_id and link = '/employees?reset=' || t.id and not is_read;
+
+  insert into public.audit_logs (company_id, table_name, record_id, action, performed_by, new_data)
+  values (t.company_id, 'employees', t.id::text, 'UPDATE', public.auth_employee_id(),
+          jsonb_build_object('evento', case when v_new then 'cuenta_creada' else 'contrasena_restablecida' end, 'username', t.username));
+
+  return jsonb_build_object('username', t.username, 'created', v_new);
+end $$;
+revoke all on function public.admin_set_password(uuid, text) from public, anon;
+grant execute on function public.admin_set_password(uuid, text) to authenticated;
+
+create or replace function public.clear_must_change_password()
+returns void language sql security definer set search_path = public as $$
+  update auth.users set raw_user_meta_data = raw_user_meta_data - 'must_change_password'
+  where id = auth.uid()
+$$;
+revoke all on function public.clear_must_change_password() from public, anon;
+grant execute on function public.clear_must_change_password() to authenticated;
+
+create or replace function public.request_password_reset(p_username text)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  t   public.employees%rowtype;
+  ag  record;
+  v_link text;
+begin
+  select * into t from public.employees
+   where lower(username) = lower(split_part(trim(coalesce(p_username, '')), '@', 1))
+     and status = 'active' limit 1;
+  if not found then return; end if;
+
+  v_link := '/employees?reset=' || t.id;
+  if exists (select 1 from public.notifications
+             where link = v_link and created_at > now() - interval '15 minutes') then
+    return;
+  end if;
+
+  for ag in
+    select distinct e.id from public.employees e
+    join public.roles r on r.id = e.role_id
+    where e.company_id = t.company_id and e.status = 'active' and e.id <> t.id
+      and (e.is_owner
+        or (r.code = 'admin' and not t.is_owner)
+        or (exists (select 1 from public.role_permissions rp where rp.role_id = e.role_id and rp.permission_code = 'manage_employees')
+            and r.scope = 'branch' and e.branch_id = t.branch_id
+            and (select r2.scope from public.roles r2 where r2.id = t.role_id) not in ('company')))
+  loop
+    perform public.notify_employee(ag.id, 'password', 'Solicitud de contraseña: ' || t.full_name,
+      '@' || t.username || ' olvidó su contraseña. Asígnale una temporal.', v_link);
+  end loop;
+end $$;
+revoke all on function public.request_password_reset(text) from public;
+grant execute on function public.request_password_reset(text) to anon, authenticated;
+
+-- ─── 3. CHECKLISTS AUTOMÁTICOS CADA DÍA (pg_cron) ───────────────────────────
+do $$
+begin
+  create extension if not exists pg_cron with schema pg_catalog;
+  perform cron.unschedule(jobid) from cron.job where jobname = 'operalia-mantenimiento';
+  perform cron.schedule('operalia-mantenimiento', '5 * * * *',
+    'select public.run_daily_maintenance(id) from public.companies');
+exception when others then
+  raise notice 'pg_cron no disponible (%). Actívalo en Database → Extensions y vuelve a ejecutar este archivo.', sqlerrm;
+end $$;
+
+-- ─── 4. SUCURSAL SUR Y CHECKLISTS NUEVOS ────────────────────────────────────
+update public.branches set status = 'active'
+ where id = 'b0000000-0000-4000-8000-000000000003' and status = 'inactive';
+
+insert into public.checklist_templates (company_id, department_id, title, description, shift, start_time, end_time, frequency, requires_evidence)
+select c.id, d.id, v.title, v.descr, v.shift, v.st::time, v.et::time, 'daily', true
+from public.companies c
+cross join (values
+  ('CAJ', 'Limpieza de cajas', 'Canastillas, inicio y fin de cajas, y carritos de servicio (silla de ruedas, carrito eléctrico)', 'especial', '07:00', '22:30'),
+  ('CAJ', 'Recolección de carritos', 'Foto de la hoja firmada de recolección de carritos de 7:00 a 22:00', 'especial', '07:00', '22:30'),
+  ('CAJ', 'Recolección de devoluciones', 'Foto de la hoja firmada por todas las áreas de 7:00 a 22:00', 'especial', '07:00', '22:30'),
+  ('PRO', 'Revisión de tarimas y retornables', 'Existencias en recibo: tarimas azules y cafés, javas de fruta y pacas de cartón', 'cierre', '20:00', '22:30')
+) as v(dept, title, descr, shift, st, et)
+join public.departments d on d.company_id = c.id and d.code = v.dept
+where not exists (select 1 from public.checklist_templates t where t.company_id = c.id and t.title = v.title);
+
+insert into public.checklist_questions (template_id, position, text, answer_type, options, requires_photo, is_required)
+select t.id, q.pos, q.txt, q.typ, q.opts::jsonb, q.photo, q.req
+from public.checklist_templates t
+join (values
+  ('Limpieza de cajas', 1, 'Inicio de cajas: banda, escáner, monitor y mostrador limpios', 'yes_no', null, true, true),
+  ('Limpieza de cajas', 2, 'Canastillas limpias, completas y acomodadas', 'yes_no', null, true, true),
+  ('Limpieza de cajas', 3, 'Sillas de ruedas limpias y en buen estado', 'yes_no', null, false, true),
+  ('Limpieza de cajas', 4, 'Carritos eléctricos limpios y con batería cargada', 'yes_no', null, true, true),
+  ('Limpieza de cajas', 5, 'Fin de cajas: área limpia, sin basura ni producto olvidado', 'yes_no', null, true, true),
+  ('Limpieza de cajas', 6, 'Observaciones (equipo dañado, faltantes)', 'text', null, false, false),
+  ('Recolección de carritos', 1, 'Foto de la hoja de recolección firmada (7:00 a 22:00)', 'photo', null, true, true),
+  ('Recolección de carritos', 2, '¿Todas las horas tienen firma?', 'yes_no', null, false, true),
+  ('Recolección de carritos', 3, 'Número de rondas realizadas', 'number', null, false, true),
+  ('Recolección de carritos', 4, 'Observaciones', 'text', null, false, false),
+  ('Recolección de devoluciones', 1, 'Foto de la hoja de devoluciones firmada (7:00 a 22:00)', 'photo', null, true, true),
+  ('Recolección de devoluciones', 2, '¿Firmaron todas las áreas?', 'yes_no', null, false, true),
+  ('Recolección de devoluciones', 3, 'Áreas que no firmaron (si aplica)', 'text', null, false, false),
+  ('Recolección de devoluciones', 4, 'Piezas devueltas recolectadas', 'number', null, false, true),
+  ('Revisión de tarimas y retornables', 1, 'Tarimas azules en recibo (cantidad)', 'number', null, false, true),
+  ('Revisión de tarimas y retornables', 2, 'Tarimas cafés en recibo (cantidad)', 'number', null, false, true),
+  ('Revisión de tarimas y retornables', 3, 'Javas de fruta (cantidad)', 'number', null, false, true),
+  ('Revisión de tarimas y retornables', 4, 'Pacas de cartón sobrante (cantidad)', 'number', null, false, true),
+  ('Revisión de tarimas y retornables', 5, 'Estado del área de retornables', 'option', '["Ordenada","Con exceso","Obstruye el paso"]', false, true),
+  ('Revisión de tarimas y retornables', 6, 'Foto del área de tarimas y retornables', 'photo', null, true, true),
+  ('Revisión de tarimas y retornables', 7, 'Observaciones', 'text', null, false, false)
+) as q(title, pos, txt, typ, opts, photo, req) on q.title = t.title
+where not exists (select 1 from public.checklist_questions x where x.template_id = t.id);
+
+select public.generate_checklist_runs(id, public.company_today(id)) from public.companies;
+
+
+-- >>>>>>>>>>>>>>>> migrations/0013_checklists_criticos_y_horarios.sql <<<<<<<<<<<<<<<<
+-- =============================================================================
+-- OPERALIA · 0013 · PREGUNTAS CRÍTICAS, TAREA AUTOMÁTICA Y HORARIOS POR SUCURSAL
+-- -----------------------------------------------------------------------------
+--   1. checklist_questions.is_critical: seguridad y valores (alarma, efectivo,
+--      salidas de emergencia, caducados en exhibición...).
+--   2. Tarea automática: una respuesta «No» crea una tarea para el departamento
+--      del checklist (prioridad high si la pregunta es crítica) y avisa al jefe
+--      del departamento; si es crítica también al gerente de la sucursal.
+--      Si la respuesta se corrige a otra cosa, la tarea pendiente se cancela.
+--      tasks.source_type/source_id ligan la tarea con su origen (sin duplicar).
+--   3. Horarios relativos a la sucursal: checklist_templates.schedule_anchor
+--      ('fixed' | 'opening' | 'closing') + desfases en minutos. Si la sucursal
+--      no tiene opening_time/closing_time se usan start_time/end_time.
+-- Re-ejecutable.
+-- =============================================================================
+
+-- ─── 1. PREGUNTAS CRÍTICAS ──────────────────────────────────────────────────
+alter table public.checklist_questions add column if not exists is_critical boolean not null default false;
+
+-- ─── 2. TAREA AUTOMÁTICA POR RESPUESTA «NO» ─────────────────────────────────
+alter table public.tasks add column if not exists source_type text;
+alter table public.tasks add column if not exists source_id uuid;
+create unique index if not exists tasks_source_uidx on public.tasks (source_type, source_id) where source_id is not null;
+
+create or replace function public.tg_checklist_answer_task()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  v_run   public.checklist_runs%rowtype;
+  v_q     public.checklist_questions%rowtype;
+  v_title text;
+  v_task  uuid;
+  v_actor uuid := public.auth_employee_id();
+  v_prev  text;
+  r       record;
+begin
+  select * into v_q from public.checklist_questions where id = new.question_id;
+  if v_q.answer_type <> 'yes_no' then return null; end if;
+
+  -- Corrección: dejó de ser «No» → cancelar la tarea si nadie la ha tomado.
+  if tg_op = 'UPDATE' and old.answer_value = 'no' and new.answer_value is distinct from 'no' then
+    v_prev := public.set_bypass('on');
+    update public.tasks set status = 'cancelled', completion_notes = 'Se corrigió la respuesta del checklist'
+     where source_type = 'checklist_answer' and source_id = new.id and status = 'pending';
+    perform public.set_bypass(v_prev);
+    return null;
+  end if;
+
+  if new.answer_value is distinct from 'no' or (tg_op = 'UPDATE' and old.answer_value = 'no') then
+    return null;
+  end if;
+
+  select * into v_run from public.checklist_runs where id = new.run_id;
+  select title into v_title from public.checklist_templates where id = v_run.template_id;
+
+  v_prev := public.set_bypass('on');
+  insert into public.tasks (company_id, branch_id, department_id, title, description, priority, due_date, created_by, source_type, source_id)
+  values (v_run.company_id, v_run.branch_id, v_run.department_id,
+          left((case when v_q.is_critical then 'CRÍTICO: ' else '' end) || v_q.text, 200),
+          'Respuesta «No» en «' || v_title || '» (' || to_char(v_run.scheduled_date, 'DD/MM/YYYY') || ').'
+            || coalesce(E'\nComentario: ' || nullif(trim(new.comment), ''), ''),
+          case when v_q.is_critical then 'high' else 'medium' end,
+          v_run.scheduled_date, v_actor, 'checklist_answer', new.id)
+  on conflict (source_type, source_id) where source_id is not null
+  do update set status = 'pending', completion_notes = null, completed_at = null
+  returning id into v_task;
+  perform public.set_bypass(v_prev);
+
+  -- Avisos: jefes del departamento (revisan checklists) y, si es crítica, gerentes.
+  for r in
+    select distinct e.id
+    from public.employees e
+    join public.roles ro on ro.id = e.role_id
+    where e.company_id = v_run.company_id and e.status = 'active'
+      and e.id is distinct from v_actor
+      and (e.branch_id = v_run.branch_id or ro.scope = 'company')
+      and (
+        (ro.code <> 'admin'
+         and exists (select 1 from public.role_permissions rp where rp.role_id = e.role_id and rp.permission_code = 'review_checklists')
+         and (e.department_id = v_run.department_id
+              or exists (select 1 from public.employee_departments ed where ed.employee_id = e.id and ed.department_id = v_run.department_id)))
+        or (v_q.is_critical and ro.code = 'gerente' and e.branch_id = v_run.branch_id)
+      )
+  loop
+    perform public.notify_employee(r.id, 'task',
+      case when v_q.is_critical then 'Falla crítica en checklist' else 'Falla en checklist' end,
+      v_title || ': ' || v_q.text, '/tasks');
+  end loop;
+  return null;
+end $$;
+
+drop trigger if exists trg_checklist_answer_task on public.checklist_answers;
+create trigger trg_checklist_answer_task after insert or update of answer_value on public.checklist_answers
+  for each row execute function public.tg_checklist_answer_task();
+
+-- ─── 3. HORARIOS RELATIVOS A LA APERTURA / CIERRE DE LA SUCURSAL ────────────
+alter table public.checklist_templates add column if not exists schedule_anchor text not null default 'fixed';
+alter table public.checklist_templates add column if not exists start_offset_minutes integer;
+alter table public.checklist_templates add column if not exists end_offset_minutes integer;
+do $$ begin
+  alter table public.checklist_templates add constraint checklist_templates_anchor_chk
+    check (schedule_anchor in ('fixed','opening','closing')
+           and (schedule_anchor = 'fixed' or (start_offset_minutes is not null and end_offset_minutes is not null
+                                              and end_offset_minutes > start_offset_minutes)));
+exception when duplicate_object then null; end $$;
+
+-- Ventana de una plantilla en una sucursal. Sin cruzar medianoche:
+-- un inicio antes de las 00:00 se recorta a 00:00 y un fin después, a 23:59.
+create or replace function public.checklist_window(
+  p_anchor text, p_start time, p_end time, p_start_off int, p_end_off int, p_opening time, p_closing time,
+  out win_start time, out win_end time)
+language plpgsql immutable as $$
+declare
+  v_base time := case p_anchor when 'opening' then p_opening when 'closing' then p_closing end;
+  v_base_min int;
+begin
+  if p_anchor = 'fixed' or v_base is null then
+    win_start := p_start; win_end := p_end; return;
+  end if;
+  v_base_min := extract(hour from v_base)::int * 60 + extract(minute from v_base)::int;
+  win_start := time '00:00' + make_interval(mins => greatest(0, least(1439, v_base_min + p_start_off)));
+  win_end   := time '00:00' + make_interval(mins => greatest(0, least(1439, v_base_min + p_end_off)));
+  if win_end <= win_start then
+    win_start := p_start; win_end := p_end;
+  end if;
+end $$;
+
+create or replace function public.generate_checklist_runs(p_company_id uuid, p_date date)
+returns integer language plpgsql security definer set search_path = public as $$
+declare v_rows int;
+begin
+  insert into public.checklist_runs
+    (company_id, template_id, branch_id, department_id, scheduled_date, scheduled_start, scheduled_end)
+  select t.company_id, t.id, b.id, t.department_id, p_date, w.win_start, w.win_end
+  from public.checklist_templates t
+  join public.branches b on b.company_id = t.company_id and b.status = 'active'
+  cross join lateral public.checklist_window(t.schedule_anchor, t.start_time, t.end_time,
+    t.start_offset_minutes, t.end_offset_minutes, b.opening_time, b.closing_time) w
+  where t.company_id = p_company_id and t.is_active
+    -- Las rondas de un día se generan juntas; si ya hay corridas de ese día no se agregan más
+    -- (así cambiar la hora o la repetición de una plantilla aplica desde el día siguiente).
+    and not exists (select 1 from public.checklist_runs x
+                    where x.template_id = t.id and x.branch_id = b.id and x.scheduled_date = p_date)
+    and (t.frequency = 'daily'
+      or (t.frequency = 'weekdays' and extract(isodow from p_date) < 6)
+      or (t.frequency = 'weekly' and extract(dow from p_date) = t.weekday))
+  on conflict do nothing;
+  get diagnostics v_rows = row_count;
+  return v_rows;
+end $$;
+revoke all on function public.generate_checklist_runs(uuid, date) from public, anon, authenticated;
+
+
+-- >>>>>>>>>>>>>>>> migrations/0014_temperaturas_y_mermas.sql <<<<<<<<<<<<<<<<
+-- =============================================================================
+-- OPERALIA · 0014 · TEMPERATURAS (PREGUNTAS CON RANGO) Y MERMAS CON MOTIVO
+-- -----------------------------------------------------------------------------
+-- A) Temperaturas: no es un módulo aparte, es una pregunta numérica con rango.
+--    * checklist_questions: min_value, max_value, unit, equipment_name.
+--    * checklist_answers.out_of_range: lo calcula un trigger. Fuera de rango
+--      cuenta como «No» en la calificación y crea la tarea automática de 0013
+--      con prioridad high, avisando al jefe del departamento y al gerente.
+--    * Una lectura fuera de rango exige comentario y foto para completar.
+-- B) Mermas:
+--    * inventory_movements: waste_reason (obligatorio en 'waste') y unit_cost
+--      (copia products.cost al insertar si viene vacío).
+--    * Permiso register_waste (los roles se asignan en seed/0012).
+--    * Retirar o marcar vencido un lote de caducidades genera su merma
+--      ('expired') automáticamente.
+-- La conversión de las preguntas de temperatura existentes está en
+-- seed/0012_temperaturas_y_mermas.sql (corre después de las semillas).
+-- Re-ejecutable.
+-- =============================================================================
+
+-- ═══ A. TEMPERATURAS ═════════════════════════════════════════════════════════
+alter table public.checklist_questions add column if not exists min_value numeric;
+alter table public.checklist_questions add column if not exists max_value numeric;
+alter table public.checklist_questions add column if not exists unit text;
+alter table public.checklist_questions add column if not exists equipment_name text;
+do $$ begin
+  alter table public.checklist_questions add constraint checklist_questions_range_chk
+    check (min_value is null or max_value is null or min_value <= max_value);
+exception when duplicate_object then null; end $$;
+
+alter table public.checklist_answers add column if not exists out_of_range boolean;
+
+-- Calcula out_of_range y valida que la lectura sea un número.
+create or replace function public.tg_checklist_answer_range()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  q public.checklist_questions%rowtype;
+  v numeric;
+begin
+  select * into q from public.checklist_questions where id = new.question_id;
+  new.out_of_range := null;
+  if q.answer_type <> 'number' or (q.min_value is null and q.max_value is null)
+     or coalesce(trim(new.answer_value), '') = '' then
+    return new;
+  end if;
+  begin
+    v := replace(trim(new.answer_value), ',', '.')::numeric;
+  exception when others then
+    raise exception 'La lectura de «%» debe ser un número', q.text;
+  end;
+  new.answer_value := v::text;
+  new.out_of_range := (q.min_value is not null and v < q.min_value) or (q.max_value is not null and v > q.max_value);
+  return new;
+end $$;
+drop trigger if exists trg_checklist_answer_range on public.checklist_answers;
+create trigger trg_checklist_answer_range before insert or update on public.checklist_answers
+  for each row execute function public.tg_checklist_answer_range();
+
+-- Tarea automática (reemplaza la de 0013): «No» en sí/no o lectura fuera de rango.
+create or replace function public.tg_checklist_answer_task()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  v_run    public.checklist_runs%rowtype;
+  v_q      public.checklist_questions%rowtype;
+  v_tmpl   text;
+  v_actor  uuid := public.auth_employee_id();
+  v_prev   text;
+  v_fail   boolean;
+  v_was    boolean;
+  v_range  boolean;
+  v_urgent boolean;
+  v_title  text;
+  v_desc   text;
+  r        record;
+begin
+  select * into v_q from public.checklist_questions where id = new.question_id;
+  v_range := v_q.answer_type = 'number' and (v_q.min_value is not null or v_q.max_value is not null);
+  if v_q.answer_type <> 'yes_no' and not v_range then return null; end if;
+
+  v_fail := case when v_range then coalesce(new.out_of_range, false) else new.answer_value = 'no' end;
+  v_was  := tg_op = 'UPDATE' and case when v_range then coalesce(old.out_of_range, false) else old.answer_value = 'no' end;
+
+  -- Corrección: ya no hay falla → cancelar la tarea si nadie la ha tomado.
+  if v_was and not v_fail then
+    v_prev := public.set_bypass('on');
+    update public.tasks set status = 'cancelled', completion_notes = 'Se corrigió la respuesta del checklist'
+     where source_type = 'checklist_answer' and source_id = new.id and status = 'pending';
+    perform public.set_bypass(v_prev);
+    return null;
+  end if;
+  if not v_fail or (v_was and not v_range) then return null; end if;
+
+  select * into v_run from public.checklist_runs where id = new.run_id;
+  select title into v_tmpl from public.checklist_templates where id = v_run.template_id;
+  v_urgent := v_q.is_critical or v_range;
+
+  if v_range then
+    v_title := (case when v_q.unit ilike '%°%' then 'Temperatura fuera de rango: ' else 'Lectura fuera de rango: ' end)
+               || coalesce(v_q.equipment_name, v_q.text) || ' ' || new.answer_value || coalesce(v_q.unit, '');
+    v_desc  := 'Lectura en «' || v_tmpl || '» (' || to_char(v_run.scheduled_date, 'DD/MM/YYYY') || '). Rango permitido: '
+               || coalesce(v_q.min_value::text, '−∞') || ' a ' || coalesce(v_q.max_value::text, '∞') || coalesce(' ' || v_q.unit, '') || '.';
+  else
+    v_title := (case when v_q.is_critical then 'CRÍTICO: ' else '' end) || v_q.text;
+    v_desc  := 'Respuesta «No» en «' || v_tmpl || '» (' || to_char(v_run.scheduled_date, 'DD/MM/YYYY') || ').';
+  end if;
+  v_desc := v_desc || coalesce(E'\nComentario: ' || nullif(trim(new.comment), ''), '');
+
+  v_prev := public.set_bypass('on');
+  insert into public.tasks (company_id, branch_id, department_id, title, description, priority, due_date, created_by, source_type, source_id)
+  values (v_run.company_id, v_run.branch_id, v_run.department_id, left(v_title, 200), v_desc,
+          case when v_urgent then 'high' else 'medium' end, v_run.scheduled_date, v_actor, 'checklist_answer', new.id)
+  on conflict (source_type, source_id) where source_id is not null
+  do update set status = 'pending', title = excluded.title, description = excluded.description,
+                completion_notes = null, completed_at = null;
+  perform public.set_bypass(v_prev);
+
+  for r in
+    select distinct e.id
+    from public.employees e
+    join public.roles ro on ro.id = e.role_id
+    where e.company_id = v_run.company_id and e.status = 'active'
+      and e.id is distinct from v_actor
+      and (e.branch_id = v_run.branch_id or ro.scope = 'company')
+      and (
+        (ro.code <> 'admin'
+         and exists (select 1 from public.role_permissions rp where rp.role_id = e.role_id and rp.permission_code = 'review_checklists')
+         and (e.department_id = v_run.department_id
+              or exists (select 1 from public.employee_departments ed where ed.employee_id = e.id and ed.department_id = v_run.department_id)))
+        or (v_urgent and ro.code = 'gerente' and e.branch_id = v_run.branch_id)
+      )
+  loop
+    perform public.notify_employee(r.id, 'task',
+      case when v_range then left(v_title, 120) when v_q.is_critical then 'Falla crítica en checklist' else 'Falla en checklist' end,
+      v_tmpl || ': ' || v_q.text, '/tasks');
+  end loop;
+  return null;
+end $$;
+
+-- Completar exige comentario y foto en cada lectura fuera de rango.
+create or replace function public.tg_checklist_range_completion()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_missing int;
+begin
+  if new.status = 'completed' and old.status <> 'completed' then
+    select count(*) into v_missing
+    from public.checklist_answers a
+    where a.run_id = new.id and a.out_of_range
+      and (coalesce(trim(a.comment), '') = ''
+           or not exists (select 1 from public.evidence_files ev where ev.entity_type = 'checklist_answer' and ev.entity_id = a.id));
+    if v_missing > 0 then
+      raise exception 'Hay % lectura(s) fuera de rango sin comentario o sin foto', v_missing;
+    end if;
+  end if;
+  return new;
+end $$;
+drop trigger if exists trg_checklist_range_completion on public.checklist_runs;
+create trigger trg_checklist_range_completion before update on public.checklist_runs
+  for each row execute function public.tg_checklist_range_completion();
+
+-- ═══ B. MERMAS ══════════════════════════════════════════════════════════════
+alter table public.inventory_movements add column if not exists waste_reason text;
+alter table public.inventory_movements add column if not exists unit_cost numeric(12,2);
+do $$ begin
+  alter table public.inventory_movements add constraint inventory_movements_waste_reason_chk
+    check (waste_reason is null or waste_reason in ('expired','damaged','theft','mishandling','temperature','other'));
+exception when duplicate_object then null; end $$;
+create index if not exists movements_waste_idx on public.inventory_movements (branch_id, created_at) where movement_type = 'waste';
+
+-- Históricos: costo actual del producto y motivo deducido del texto.
+update public.inventory_movements m set unit_cost = p.cost
+  from public.products p where p.id = m.product_id and m.unit_cost is null;
+update public.inventory_movements set waste_reason = case when reason ilike '%caduc%' then 'expired' else 'other' end
+ where movement_type = 'waste' and waste_reason is null;
+
+create or replace function public.tg_movement_cost()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.unit_cost is null then
+    select cost into new.unit_cost from public.products where id = new.product_id;
+  end if;
+  if new.movement_type = 'waste' and new.waste_reason is null then
+    raise exception 'Indica el motivo de la merma';
+  end if;
+  if new.movement_type <> 'waste' then new.waste_reason := null; end if;
+  return new;
+end $$;
+drop trigger if exists trg_movement_cost on public.inventory_movements;
+create trigger trg_movement_cost before insert on public.inventory_movements
+  for each row execute function public.tg_movement_cost();
+
+insert into public.permissions (code, module, name, description) values
+  ('register_waste', 'Inventario', 'Registrar mermas', 'Capturar merma con motivo, cantidad y foto')
+on conflict (code) do nothing;
+
+drop policy if exists movements_insert on public.inventory_movements;
+create policy movements_insert on public.inventory_movements for insert to authenticated
+  with check (public.can_access_branch(branch_id) and (
+                 (select public.has_permission('manage_inventory'))
+              or (movement_type = 'waste' and (select public.has_permission('register_waste')))
+              or (movement_type = 'waste' and (select public.has_permission('manage_expirations')))));
+
+-- Foto de la merma.
+alter table public.evidence_files drop constraint if exists evidence_files_entity_type_check;
+alter table public.evidence_files add constraint evidence_files_entity_type_check check (entity_type in (
+  'checklist_run','checklist_answer','task','receiving_order','price_change','shelf_tag',
+  'order','expiration','support_ticket','product','supplier_visit','inventory_movement','other'));
+
+-- Caducidades: retirar (o marcar vencido a mano) genera la merma una sola vez.
+-- El vencimiento automático del mantenimiento (contexto de sistema) no la genera:
+-- el producto aún está en anaquel hasta que alguien lo retira.
+create or replace function public.tg_expiration_waste()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_stock numeric; v_qty numeric;
+begin
+  if new.status in ('withdrawn','expired') and old.status is distinct from new.status
+     and not public.is_system_context() and new.quantity > 0
+     and not exists (select 1 from public.inventory_movements
+                     where reference_type = 'product_expiration' and reference_id = new.id) then
+    select stock into v_stock from public.inventory where branch_id = new.branch_id and product_id = new.product_id;
+    v_qty := least(new.quantity, coalesce(v_stock, 0));
+    if v_qty > 0 then
+      insert into public.inventory_movements (company_id, branch_id, product_id, movement_type, quantity,
+                                              waste_reason, reason, reference_type, reference_id)
+      values (new.company_id, new.branch_id, new.product_id, 'waste', v_qty, 'expired',
+              'Merma por caducidad · lote ' || coalesce(new.lot, 's/n'), 'product_expiration', new.id);
+    end if;
+  end if;
+  return null;
+end $$;
+drop trigger if exists trg_expiration_waste on public.product_expirations;
+create trigger trg_expiration_waste after update on public.product_expirations
+  for each row execute function public.tg_expiration_waste();
+
+-- La vista expone las columnas nuevas (m.* se fija al crear la vista).
+drop view if exists public.v_inventory_movements;
+create view public.v_inventory_movements with (security_invoker = on) as
+select m.*, p.sku, p.name as product_name, p.unit, b.name as branch_name,
+       e.full_name as created_by_name,
+       round(m.quantity * coalesce(m.unit_cost, 0), 2) as total_cost
+from public.inventory_movements m
+join public.products p on p.id = m.product_id
+join public.branches b on b.id = m.branch_id
+left join public.employees e on e.id = m.created_by;
+grant select on public.v_inventory_movements to authenticated;
+
+-- v_tasks también fija t.*: se recrea para incluir source_type/source_id (0013).
+drop view if exists public.v_tasks;
+create view public.v_tasks with (security_invoker = on) as
+select t.*, d.name as department_name, b.name as branch_name,
+       ea.full_name as assigned_to_name, ec.full_name as created_by_name,
+       (select count(*) from public.evidence_files ev where ev.entity_type = 'task' and ev.entity_id = t.id) as evidence_count,
+       (t.status in ('pending','in_progress') and t.due_date < public.company_today(t.company_id)) as is_late
+from public.tasks t
+join public.branches b on b.id = t.branch_id
+left join public.departments d on d.id = t.department_id
+left join public.employees ea on ea.id = t.assigned_to
+left join public.employees ec on ec.id = t.created_by;
+grant select on public.v_tasks to authenticated;
+
+
+-- >>>>>>>>>>>>>>>> migrations/0015_zonas_jefe_escaner.sql <<<<<<<<<<<<<<<<
+-- =============================================================================
+-- OPERALIA · 0015 · ZONAS, ALCANCE 'zone' Y OFERTAS POR ZONA
+-- -----------------------------------------------------------------------------
+--   1. zones + branches.zone_id. Las zonas demo y la asignación de sucursales
+--      están en seed/0013_zonas_jefe_escaner.sql.
+--   2. Alcance de rol 'zone' + employee_zones: un rol 'zone' ve todas las
+--      sucursales de sus zonas, y dentro de ellas solo su(s) departamento(s)
+--      (igual que el alcance 'department').
+--      Revisado contra 0005 y posteriores: can_access_branch, empleados,
+--      notificaciones por departamento, tickets, cambios de precio y guardas
+--      de empleados.
+--   3. price_changes.zone_id: el cambio aplica a las sucursales de esa zona.
+--   4. branch_prices: precio por sucursal. Antes cualquier cambio (aunque fuera
+--      de una sola sucursal) cambiaba products.price para todas las tiendas.
+--      Ahora un cambio de sucursal o zona guarda el precio en branch_prices;
+--      uno de toda la empresa sigue cambiando products.price.
+--      v_inventory muestra el precio efectivo de cada sucursal.
+-- Re-ejecutable.
+-- =============================================================================
+
+-- ─── 1. ZONAS ───────────────────────────────────────────────────────────────
+create table if not exists public.zones (
+  id          uuid primary key default gen_random_uuid(),
+  company_id  uuid not null references public.companies(id) on delete cascade,
+  code        text not null,
+  name        text not null,
+  is_active   boolean not null default true,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now(),
+  unique (company_id, code)
+);
+alter table public.branches add column if not exists zone_id uuid references public.zones(id) on delete set null;
+create index if not exists branches_zone_idx on public.branches (zone_id);
+
+drop trigger if exists trg_updated_at on public.zones;
+create trigger trg_updated_at before update on public.zones
+  for each row execute function public.tg_set_updated_at();
+
+-- ─── 2. ALCANCE 'zone' ──────────────────────────────────────────────────────
+do $$
+declare c text;
+begin
+  for c in select conname from pg_constraint
+           where conrelid = 'public.roles'::regclass and contype = 'c' and pg_get_constraintdef(oid) ilike '%scope%'
+  loop
+    execute format('alter table public.roles drop constraint %I', c);
+  end loop;
+  alter table public.roles add constraint roles_scope_check check (scope in ('company','zone','branch','department','self'));
+end $$;
+
+create table if not exists public.employee_zones (
+  employee_id uuid not null references public.employees(id) on delete cascade,
+  zone_id     uuid not null references public.zones(id) on delete cascade,
+  primary key (employee_id, zone_id)
+);
+create index if not exists employee_zones_zone_idx on public.employee_zones (zone_id);
+
+-- Zonas del usuario actual (solo aplica a roles con alcance 'zone').
+create or replace function public.auth_zone_ids()
+returns setof uuid language sql stable security definer set search_path = public as $$
+  select ez.zone_id from public.employee_zones ez where ez.employee_id = public.auth_employee_id()
+$$;
+
+-- ¿Puede ver datos de esta sucursal?
+--   company → cualquier sucursal de su empresa
+--   zone    → las sucursales de sus zonas
+--   demás   → solo la suya
+create or replace function public.can_access_branch(p_branch_id uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select case
+    when p_branch_id is null then false
+    when public.auth_role_scope() = 'company' then exists (
+      select 1 from public.branches b
+      where b.id = p_branch_id and b.company_id = public.auth_company_id())
+    when public.auth_role_scope() = 'zone' then exists (
+      select 1 from public.branches b
+      where b.id = p_branch_id and b.company_id = public.auth_company_id()
+        and b.zone_id in (select public.auth_zone_ids()))
+    else p_branch_id = public.auth_branch_id()
+  end
+$$;
+-- can_access_department no cambia: 'zone' cae en la rama de departamento
+-- (su departamento o los de employee_departments) después de validar la sucursal.
+
+-- Notificaciones por departamento: el jefe de zona las recibe de sus sucursales.
+create or replace function public.is_my_notification(p_employee_id uuid, p_department_id uuid, p_branch_id uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select case
+    when p_employee_id is not null then p_employee_id = public.auth_employee_id()
+    else (p_branch_id is null or p_branch_id = public.auth_branch_id()
+          or (public.auth_role_scope() = 'zone' and public.can_access_branch(p_branch_id)))
+     and (p_department_id = public.auth_department_id()
+          or exists (select 1 from public.employee_departments ed
+                     where ed.employee_id = public.auth_employee_id() and ed.department_id = p_department_id))
+  end
+$$;
+
+-- Tickets: el jefe de zona ve los de su departamento en sus sucursales.
+create or replace function public.can_view_ticket(p_created_by uuid, p_branch_id uuid, p_department_id uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select p_created_by = public.auth_employee_id()
+      or public.has_permission('manage_tickets')
+      or (public.auth_role_scope() in ('company','zone','branch','department')
+          and public.can_access_department(p_branch_id, p_department_id))
+$$;
+
+-- Empleados: el jefe de zona ve (y, si tiene permiso, gestiona) a los de sus sucursales.
+drop policy if exists employees_select on public.employees;
+create policy employees_select on public.employees for select to authenticated
+  using (company_id = (select public.auth_company_id()) and (
+         (select public.auth_role_scope()) = 'company'
+      or branch_id = (select public.auth_branch_id())
+      or ((select public.auth_role_scope()) = 'zone' and public.can_access_branch(branch_id))
+      or user_id = (select auth.uid())));
+drop policy if exists employees_update on public.employees;
+create policy employees_update on public.employees for update to authenticated
+  using (company_id = (select public.auth_company_id()) and (select public.has_permission('manage_employees'))
+         and ((select public.auth_role_scope()) = 'company' or public.can_access_branch(branch_id)))
+  with check (company_id = (select public.auth_company_id()));
+
+-- Guarda de empleados: solo un administrador asigna roles de empresa o de zona.
+do $$
+declare v_src text;
+begin
+  select pg_get_functiondef('public.tg_employee_guard()'::regprocedure) into v_src;
+  if position('v_target_scope = ''zone''' in v_src) = 0 then
+    v_src := replace(v_src,
+      'if v_target_scope = ''company'' and public.auth_role_scope() <> ''company'' then',
+      'if v_target_scope = ''zone'' and public.auth_role_scope() <> ''company'' then
+    raise exception ''Solo un administrador puede asignar roles con alcance de zona'';
+  end if;
+  if v_target_scope = ''company'' and public.auth_role_scope() <> ''company'' then');
+    v_src := replace(v_src,
+      'if public.auth_role_scope() <> ''company'' and new.branch_id is distinct from public.auth_branch_id() then',
+      'if public.auth_role_scope() <> ''company'' and not public.can_access_branch(new.branch_id) then');
+    execute v_src;
+  end if;
+end $$;
+
+-- Zonas y asignaciones: lectura en la empresa; escritura con manage_branches / manage_employees.
+alter table public.zones enable row level security;
+drop policy if exists zones_select on public.zones;
+create policy zones_select on public.zones for select to authenticated
+  using (company_id = (select public.auth_company_id()));
+drop policy if exists zones_write on public.zones;
+create policy zones_write on public.zones for all to authenticated
+  using (company_id = (select public.auth_company_id()) and (select public.has_permission('manage_branches')))
+  with check (company_id = (select public.auth_company_id()) and (select public.has_permission('manage_branches')));
+
+alter table public.employee_zones enable row level security;
+drop policy if exists employee_zones_select on public.employee_zones;
+create policy employee_zones_select on public.employee_zones for select to authenticated
+  using (exists (select 1 from public.employees e where e.id = employee_id and e.company_id = (select public.auth_company_id())));
+drop policy if exists employee_zones_write on public.employee_zones;
+create policy employee_zones_write on public.employee_zones for all to authenticated
+  using ((select public.has_permission('manage_employees')) and (select public.auth_role_scope()) = 'company'
+         and exists (select 1 from public.employees e where e.id = employee_id and e.company_id = (select public.auth_company_id())))
+  with check ((select public.has_permission('manage_employees')) and (select public.auth_role_scope()) = 'company'
+         and exists (select 1 from public.employees e where e.id = employee_id and e.company_id = (select public.auth_company_id()))
+         and exists (select 1 from public.zones z where z.id = zone_id and z.company_id = (select public.auth_company_id())));
+
+grant select, insert, update, delete on public.zones, public.employee_zones to authenticated;
+grant execute on function public.auth_zone_ids() to authenticated;
+
+-- Perfil: incluye las zonas del usuario.
+create or replace function public.get_my_profile()
+returns jsonb language sql stable security definer set search_path = public as $$
+  select jsonb_build_object(
+    'id', e.id, 'user_id', e.user_id, 'username', e.username, 'full_name', e.full_name,
+    'employee_code', e.employee_code, 'position', e.position, 'email', e.email,
+    'company_id', e.company_id, 'company_name', c.name,
+    'branch_id', e.branch_id, 'branch_name', b.name,
+    'department_id', e.department_id, 'department_name', d.name,
+    'role_id', r.id, 'role_code', r.code, 'role_name', r.name, 'role_scope', r.scope,
+    'zone_ids', coalesce((select jsonb_agg(ez.zone_id) from public.employee_zones ez where ez.employee_id = e.id), '[]'::jsonb),
+    'zone_names', coalesce((select jsonb_agg(z.name order by z.name) from public.employee_zones ez
+                              join public.zones z on z.id = ez.zone_id where ez.employee_id = e.id), '[]'::jsonb),
+    'permissions', coalesce((select jsonb_agg(p) from public.my_permissions() p), '[]'::jsonb)
+  )
+  from public.employees e
+  join public.companies c on c.id = e.company_id
+  join public.roles r on r.id = e.role_id
+  left join public.branches b on b.id = e.branch_id
+  left join public.departments d on d.id = e.department_id
+  where e.user_id = auth.uid() and e.status = 'active'
+  limit 1
+$$;
+
+-- ─── 3. CAMBIOS DE PRECIO POR ZONA ──────────────────────────────────────────
+alter table public.price_changes add column if not exists zone_id uuid references public.zones(id) on delete set null;
+do $$ begin
+  alter table public.price_changes add constraint price_changes_scope_chk check (zone_id is null or branch_id is null);
+exception when duplicate_object then null; end $$;
+
+drop policy if exists price_changes_select on public.price_changes;
+create policy price_changes_select on public.price_changes for select to authenticated
+  using (company_id = (select public.auth_company_id()) and (
+         (branch_id is null and zone_id is null)
+      or public.can_access_branch(branch_id)
+      or (select public.auth_role_scope()) = 'company'
+      or zone_id in (select public.auth_zone_ids())
+      or exists (select 1 from public.branches b where b.id = (select public.auth_branch_id()) and b.zone_id = price_changes.zone_id)));
+drop policy if exists price_changes_insert on public.price_changes;
+create policy price_changes_insert on public.price_changes for insert to authenticated
+  with check (company_id = (select public.auth_company_id()) and (select public.has_permission('manage_price_changes'))
+              and (
+                    (branch_id is null and zone_id is null and (select public.auth_role_scope()) = 'company')
+                 or (zone_id is not null and ((select public.auth_role_scope()) = 'company' or zone_id in (select public.auth_zone_ids())))
+                 or (branch_id is not null and public.can_access_branch(branch_id))));
+
+-- ─── 4. PRECIO POR SUCURSAL ─────────────────────────────────────────────────
+create table if not exists public.branch_prices (
+  branch_id       uuid not null references public.branches(id) on delete cascade,
+  product_id      uuid not null references public.products(id) on delete cascade,
+  company_id      uuid not null references public.companies(id) on delete cascade,
+  price           numeric(12,2) not null check (price > 0),
+  previous_price  numeric(12,2),
+  price_change_id uuid references public.price_changes(id) on delete set null,
+  updated_at      timestamptz not null default now(),
+  primary key (branch_id, product_id)
+);
+alter table public.branch_prices enable row level security;
+drop policy if exists branch_prices_select on public.branch_prices;
+create policy branch_prices_select on public.branch_prices for select to authenticated
+  using (company_id = (select public.auth_company_id()));
+grant select on public.branch_prices to authenticated;
+
+-- Precio vigente de un producto en una sucursal.
+create or replace function public.effective_price(p_product_id uuid, p_branch_id uuid)
+returns numeric language sql stable security definer set search_path = public as $$
+  select coalesce((select bp.price from public.branch_prices bp where bp.branch_id = p_branch_id and bp.product_id = p_product_id),
+                  (select p.price from public.products p where p.id = p_product_id))
+$$;
+grant execute on function public.effective_price(uuid, uuid) to authenticated;
+
+-- old_price = precio vigente en el alcance del cambio.
+create or replace function public.tg_price_change_before_insert()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.branch_id is not null then
+    new.old_price := public.effective_price(new.product_id, new.branch_id);
+  else
+    select price into new.old_price from public.products where id = new.product_id;
+  end if;
+  if new.old_price is null then raise exception 'Producto no encontrado'; end if;
+  if new.new_price = new.old_price then
+    raise exception 'El precio nuevo es igual al actual (%)', new.old_price;
+  end if;
+  new.status := 'scheduled';
+  new.applied_at := null;
+  return new;
+end $$;
+
+create or replace function public.apply_price_change(p_price_change_id uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  pc     public.price_changes%rowtype;
+  v_prev text;
+begin
+  select * into pc from public.price_changes where id = p_price_change_id for update;
+  if not found or pc.status <> 'scheduled' then return; end if;
+
+  v_prev := public.set_bypass('on');
+
+  if pc.branch_id is null and pc.zone_id is null then
+    -- Toda la empresa: precio base del producto.
+    update public.products
+       set previous_price = price, price = pc.new_price, price_updated_at = now()
+     where id = pc.product_id;
+  else
+    -- Sucursal o zona: precio propio de cada sucursal afectada.
+    insert into public.branch_prices (branch_id, product_id, company_id, price, previous_price, price_change_id, updated_at)
+    select b.id, pc.product_id, pc.company_id, pc.new_price, public.effective_price(pc.product_id, b.id), pc.id, now()
+    from public.branches b
+    where b.company_id = pc.company_id and b.status = 'active'
+      and (b.id = pc.branch_id or b.zone_id = pc.zone_id)
+    on conflict (branch_id, product_id) do update
+      set previous_price = public.branch_prices.price, price = excluded.price,
+          price_change_id = excluded.price_change_id, updated_at = now();
+  end if;
+
+  update public.price_changes set status = 'applied', applied_at = now() where id = pc.id;
+
+  if pc.requires_tag then
+    update public.shelf_tags st
+       set status = 'rejected', rejection_reason = 'Reemplazada por un cambio de precio más reciente'
+     where st.product_id = pc.product_id and st.status in ('pending','printed')
+       and ((pc.branch_id is null and pc.zone_id is null) or st.branch_id = pc.branch_id
+            or st.branch_id in (select b.id from public.branches b where b.zone_id = pc.zone_id));
+
+    insert into public.shelf_tags (company_id, branch_id, product_id, price_change_id)
+    select pc.company_id, b.id, pc.product_id, pc.id
+    from public.branches b
+    where b.company_id = pc.company_id and b.status = 'active'
+      and ((pc.branch_id is null and pc.zone_id is null) or b.id = pc.branch_id or b.zone_id = pc.zone_id);
+  end if;
+
+  perform public.set_bypass(v_prev);
+end $$;
+revoke all on function public.apply_price_change(uuid) from public, anon, authenticated;
+
+-- v_inventory con el precio efectivo de cada sucursal y su zona.
+drop view if exists public.v_inventory;
+create view public.v_inventory with (security_invoker = on) as
+select i.id, i.company_id, i.branch_id, i.product_id, i.stock, i.min_stock, i.max_stock,
+       i.location, i.status, i.last_movement_at, i.last_counted_at, i.updated_at,
+       p.sku, p.name as product_name, p.category, p.unit,
+       coalesce(bp.price, p.price) as price,
+       case when bp.price is not null then bp.previous_price else p.previous_price end as previous_price,
+       coalesce(bp.updated_at, p.price_updated_at) as price_updated_at,
+       p.department_id, p.controls_expiration, p.status as product_status,
+       d.name as department_name, b.name as branch_name, b.zone_id,
+       (bp.price is not null) as has_branch_price,
+       (select string_agg(pb.barcode, ' ' order by pb.is_primary desc)
+          from public.product_barcodes pb where pb.product_id = p.id) as barcodes,
+       exists (select 1 from public.shelf_tags st
+               where st.product_id = p.id and st.branch_id = i.branch_id
+                 and st.status in ('pending','printed','placed')) as has_pending_tag
+from public.inventory i
+join public.products p on p.id = i.product_id
+join public.branches b on b.id = i.branch_id
+left join public.branch_prices bp on bp.branch_id = i.branch_id and bp.product_id = i.product_id
+left join public.departments d on d.id = p.department_id;
+grant select on public.v_inventory to authenticated;
+
+-- v_price_changes con la zona.
+drop view if exists public.v_price_changes;
+create view public.v_price_changes with (security_invoker = on) as
+select pc.*, p.sku, p.name as product_name, b.name as branch_name, z.name as zone_name,
+       e.full_name as created_by_name,
+       (select count(*) from public.shelf_tags st where st.price_change_id = pc.id) as tags_total,
+       (select count(*) from public.shelf_tags st where st.price_change_id = pc.id and st.status = 'validated') as tags_validated
+from public.price_changes pc
+join public.products p on p.id = pc.product_id
+left join public.branches b on b.id = pc.branch_id
+left join public.zones z on z.id = pc.zone_id
+left join public.employees e on e.id = pc.created_by;
+grant select on public.v_price_changes to authenticated;
+
+
+-- >>>>>>>>>>>>>>>> migrations/0016_checklists_repetidos.sql <<<<<<<<<<<<<<<<
+-- =============================================================================
+-- OPERALIA · 0016 · CHECKLISTS QUE SE REPITEN VARIAS VECES AL DÍA (RONDAS)
+-- -----------------------------------------------------------------------------
+--   * checklist_templates.repeat_every_minutes (null = una vez al día; mínimo
+--     30) y repeat_until (último inicio permitido; por defecto la hora de
+--     cierre de la sucursal o, si no tiene, el end_time de la plantilla).
+--   * checklist_runs: la restricción única pasa de (plantilla, sucursal, fecha)
+--     a (plantilla, sucursal, fecha, hora de inicio). Cada ronda guarda
+--     round_no y rounds_total («Ronda 3 de 6»).
+--   * generate_checklist_runs crea una corrida por intervalo; cada ronda tiene
+--     la misma duración que la ventana original (sin pasar de 23:59).
+--   * Lo demás ya trabajaba por corrida: el marcado de vencidos usa el
+--     scheduled_end de cada ronda, la cancelación (0010) aplica a una ronda y
+--     la tarea automática (0013/0014) se liga a la respuesta de esa ronda.
+-- Ejemplo en seed/0014_checklists_repetidos.sql. Re-ejecutable.
+-- =============================================================================
+
+alter table public.checklist_templates add column if not exists repeat_every_minutes integer;
+alter table public.checklist_templates add column if not exists repeat_until time;
+do $$ begin
+  alter table public.checklist_templates add constraint checklist_templates_repeat_chk
+    check (repeat_every_minutes is null or repeat_every_minutes >= 30);
+exception when duplicate_object then null; end $$;
+
+alter table public.checklist_runs add column if not exists round_no integer not null default 1;
+alter table public.checklist_runs add column if not exists rounds_total integer not null default 1;
+
+-- Restricción única: se busca por columnas (el nombre real puede variar).
+do $$
+declare c text;
+begin
+  for c in
+    select con.conname from pg_constraint con
+    where con.conrelid = 'public.checklist_runs'::regclass and con.contype = 'u'
+      and (select array_agg(att.attname::text order by att.attname) from pg_attribute att
+           where att.attrelid = con.conrelid and att.attnum = any(con.conkey))
+          = array['branch_id','scheduled_date','template_id']
+  loop
+    execute format('alter table public.checklist_runs drop constraint %I', c);
+  end loop;
+  if not exists (select 1 from pg_constraint where conname = 'checklist_runs_template_branch_date_start_key') then
+    alter table public.checklist_runs add constraint checklist_runs_template_branch_date_start_key
+      unique (template_id, branch_id, scheduled_date, scheduled_start);
+  end if;
+end $$;
+
+create or replace function public.generate_checklist_runs(p_company_id uuid, p_date date)
+returns integer language plpgsql security definer set search_path = public as $$
+declare v_rows int;
+begin
+  insert into public.checklist_runs
+    (company_id, template_id, branch_id, department_id, scheduled_date, scheduled_start, scheduled_end, round_no, rounds_total)
+  select t.company_id, t.id, b.id, t.department_id, p_date,
+         r.starts_at::time,
+         least(r.starts_at + (w.win_end - w.win_start), p_date + time '23:59')::time,
+         r.n, r.total
+  from public.checklist_templates t
+  join public.branches b on b.company_id = t.company_id and b.status = 'active'
+  cross join lateral public.checklist_window(t.schedule_anchor, t.start_time, t.end_time,
+    t.start_offset_minutes, t.end_offset_minutes, b.opening_time, b.closing_time) w
+  cross join lateral (
+    select s.starts_at, s.n::int, count(*) over ()::int as total
+    from generate_series(
+           p_date + w.win_start,
+           p_date + case when t.repeat_every_minutes is null then w.win_start
+                         else greatest(w.win_start, coalesce(t.repeat_until, b.closing_time, t.end_time)) end,
+           make_interval(mins => coalesce(t.repeat_every_minutes, 1440))
+         ) with ordinality as s(starts_at, n)
+    where s.starts_at < p_date + time '23:59'
+  ) r
+  where t.company_id = p_company_id and t.is_active
+    -- Las rondas de un día se generan juntas; si ya hay corridas de ese día no se agregan más
+    -- (así cambiar la hora o la repetición de una plantilla aplica desde el día siguiente).
+    and not exists (select 1 from public.checklist_runs x
+                    where x.template_id = t.id and x.branch_id = b.id and x.scheduled_date = p_date)
+    and (t.frequency = 'daily'
+      or (t.frequency = 'weekdays' and extract(isodow from p_date) < 6)
+      or (t.frequency = 'weekly' and extract(dow from p_date) = t.weekday))
+  on conflict do nothing;
+  get diagnostics v_rows = row_count;
+  return v_rows;
+end $$;
+revoke all on function public.generate_checklist_runs(uuid, date) from public, anon, authenticated;
+
+-- v_checklist_runs fija r.* al crearse: se recrea para incluir round_no/rounds_total
+-- y la configuración de repetición de la plantilla.
+drop view if exists public.v_checklist_runs;
+create view public.v_checklist_runs with (security_invoker = on) as
+select r.*, t.title, t.shift, t.requires_evidence, t.description as template_description,
+       t.repeat_every_minutes,
+       d.name as department_name, d.color as department_color, b.name as branch_name,
+       es.full_name as started_by_name, ec.full_name as completed_by_name, ev.full_name as reviewed_by_name,
+       (select count(*) from public.checklist_questions q where q.template_id = r.template_id and q.is_active) as total_questions,
+       (select count(*) from public.checklist_answers a
+         where a.run_id = r.id and coalesce(trim(a.answer_value), '') <> '') as answered_questions,
+       (select count(*) from public.evidence_files e
+         where (e.entity_type = 'checklist_run' and e.entity_id = r.id)
+            or (e.entity_type = 'checklist_answer'
+                and e.entity_id in (select a.id from public.checklist_answers a where a.run_id = r.id))) as evidence_count
+from public.checklist_runs r
+join public.checklist_templates t on t.id = r.template_id
+join public.branches b on b.id = r.branch_id
+left join public.departments d on d.id = r.department_id
+left join public.employees es on es.id = r.started_by
+left join public.employees ec on ec.id = r.completed_by
+left join public.employees ev on ev.id = r.reviewed_by;
+grant select on public.v_checklist_runs to authenticated;
+
+
+-- >>>>>>>>>>>>>>>> migrations/0017_recordatorio_checklists.sql <<<<<<<<<<<<<<<<
+-- =============================================================================
+-- OPERALIA · 0017 · RECORDATORIO 30 MINUTOS ANTES DE QUE VENZA UN CHECKLIST
+-- -----------------------------------------------------------------------------
+--   * checklist_runs.reminded_at: el aviso se manda una sola vez por corrida
+--     (por ronda, en los checklists que se repiten).
+--   * send_checklist_reminders(empresa): corridas de hoy que siguen en
+--     pending / in_progress / reopened, ya empezaron y vencen en ≤ 30 min
+--     (hora de la empresa). Avisa:
+--       - a su departamento en esa sucursal (notificación de departamento, 0008);
+--       - a quien lo inició, si no es de ese departamento;
+--       - si el checklist no tiene departamento, a los gerentes de la sucursal.
+--   * pg_cron: job 'operalia-recordatorios' cada 5 minutos (el de 0012 corre
+--     cada hora, demasiado espaciado para avisar 30 minutos antes).
+--   * run_daily_maintenance también envía los recordatorios, así funciona
+--     aunque pg_cron no esté activo (cuando alguien abre Checklists).
+-- Re-ejecutable.
+-- =============================================================================
+
+alter table public.checklist_runs add column if not exists reminded_at timestamptz;
+create index if not exists checklist_runs_reminder_idx on public.checklist_runs (company_id, scheduled_date)
+  where reminded_at is null and status in ('pending','in_progress','reopened');
+
+create or replace function public.send_checklist_reminders(p_company_id uuid, p_minutes int default 30)
+returns integer language plpgsql security definer set search_path = public as $$
+declare
+  v_tz    text;
+  v_today date;
+  v_now   time;
+  v_prev  text;
+  v_count int := 0;
+  r       record;
+  g       record;
+  v_title text;
+  v_body  text;
+begin
+  select timezone into v_tz from public.companies where id = p_company_id;
+  if v_tz is null then return 0; end if;
+  v_today := (now() at time zone v_tz)::date;
+  v_now   := (now() at time zone v_tz)::time;
+
+  v_prev := public.set_bypass('on');
+  for r in
+    update public.checklist_runs cr
+       set reminded_at = now()
+     where cr.company_id = p_company_id
+       and cr.scheduled_date = v_today
+       and cr.status in ('pending','in_progress','reopened')
+       and cr.reminded_at is null
+       and cr.scheduled_start <= v_now
+       and cr.scheduled_end > v_now
+       and cr.scheduled_end - v_now <= make_interval(mins => p_minutes)
+    returning cr.*
+  loop
+    select t.title || case when r.rounds_total > 1 then ' (ronda ' || r.round_no || ' de ' || r.rounds_total || ')' else '' end
+      into v_title from public.checklist_templates t where t.id = r.template_id;
+    v_body := 'Vence a las ' || to_char(r.scheduled_end, 'HH24:MI')
+              || case when r.status = 'pending' then ' y aún no se inicia.' else ' y aún no se completa.' end;
+
+    if r.department_id is not null then
+      insert into public.notifications (company_id, employee_id, department_id, branch_id, type, title, body, link)
+      values (r.company_id, null, r.department_id, r.branch_id, 'checklist', 'Checklist por vencer: ' || v_title, v_body, '/checklists');
+    else
+      for g in
+        select e.id from public.employees e join public.roles ro on ro.id = e.role_id
+        where e.branch_id = r.branch_id and e.status = 'active' and ro.code = 'gerente'
+      loop
+        perform public.notify_employee(g.id, 'checklist', 'Checklist por vencer: ' || v_title, v_body, '/checklists');
+      end loop;
+    end if;
+
+    -- Quien lo inició y no pertenece a ese departamento (p. ej. un gerente).
+    if r.started_by is not null and not exists (
+         select 1 from public.employees e where e.id = r.started_by
+           and (e.department_id = r.department_id
+                or exists (select 1 from public.employee_departments ed where ed.employee_id = e.id and ed.department_id = r.department_id))) then
+      perform public.notify_employee(r.started_by, 'checklist', 'Checklist por vencer: ' || v_title, v_body, '/checklists');
+    end if;
+    v_count := v_count + 1;
+  end loop;
+  perform public.set_bypass(v_prev);
+  return v_count;
+end $$;
+revoke all on function public.send_checklist_reminders(uuid, int) from public, anon, authenticated;
+
+-- El mantenimiento diario también envía los recordatorios (sin depender de pg_cron).
+do $$
+declare v_src text;
+begin
+  select pg_get_functiondef('public.run_daily_maintenance(uuid)'::regprocedure) into v_src;
+  if position('send_checklist_reminders' in v_src) = 0 then
+    v_src := replace(v_src,
+      '  perform public.set_bypass(v_prev);' || chr(10) || chr(10) || '  return jsonb_build_object(',
+      '  perform public.send_checklist_reminders(v_company);' || chr(10)
+      || '  perform public.set_bypass(v_prev);' || chr(10) || chr(10) || '  return jsonb_build_object(');
+    if position('send_checklist_reminders' in v_src) = 0 then
+      raise exception 'No se pudo extender run_daily_maintenance: cambió su código';
+    end if;
+    execute v_src;
+  end if;
+end $$;
+
+-- pg_cron: cada 5 minutos (si la extensión está activa).
+do $$
+begin
+  perform cron.unschedule(jobid) from cron.job where jobname = 'operalia-recordatorios';
+  perform cron.schedule('operalia-recordatorios', '*/5 * * * *',
+    'select public.send_checklist_reminders(id) from public.companies');
+exception when others then
+  raise notice 'pg_cron no disponible (%). Los recordatorios se enviarán cuando alguien abra Checklists.', sqlerrm;
+end $$;
+
+
 -- >>>>>>>>>>>>>>>> seed/0008_catalogos.sql <<<<<<<<<<<<<<<<
 -- =============================================================================
 -- OPERALIA · 0008 · CATÁLOGOS INICIALES
@@ -3206,3 +4736,296 @@ cross join (values
 where d.company_id = 'c0000000-0000-4000-8000-000000000001'
   and not exists (select 1 from public.notifications n
                   where n.department_id = d.id and n.employee_id is null and n.title = v.title || ' · ' || d.name);
+
+
+-- >>>>>>>>>>>>>>>> seed/0011_checklists_gerencia.sql <<<<<<<<<<<<<<<<
+-- =============================================================================
+-- OPERALIA · SEMILLA 0011 · CHECKLISTS DE GERENCIA (APERTURA Y CIERRE)
+-- -----------------------------------------------------------------------------
+-- El gerente de cada sucursal revisa la tienda completa antes de abrir y al
+-- cerrar. Departamento Gerencia (GER), diarios.
+--
+-- Horarios relativos a la sucursal (0013): apertura respecto a
+-- branches.opening_time y cierre respecto a branches.closing_time. Los
+-- start_time/end_time son el respaldo si la sucursal no tiene horario
+-- (y corresponden a una tienda que abre 07:00 y cierra 22:00).
+--
+-- Temperaturas como sí/no por ahora (la fase de temperaturas las vuelve
+-- numéricas con rango). is_critical: seguridad y valores.
+-- Re-ejecutable: no duplica plantillas (por título) ni preguntas.
+-- Requiere la migración 0013.
+-- =============================================================================
+
+insert into public.checklist_templates
+  (company_id, department_id, title, description, shift, start_time, end_time, frequency, requires_evidence,
+   schedule_anchor, start_offset_minutes, end_offset_minutes)
+select c.id, d.id, v.title, v.descr, v.shift, v.st::time, v.et::time, 'daily', v.ev, v.anchor, v.so, v.eo
+from public.companies c
+join public.departments d on d.company_id = c.id and d.code = 'GER'
+cross join (values
+  ('Apertura · Exterior y seguridad', 'Revisión exterior y de seguridad antes de abrir', 'apertura', '06:00', '07:00', true,  'opening', -60,  0),
+  ('Apertura · Piso de venta',        'Piso de venta listo para recibir clientes',        'apertura', '06:30', '07:30', true,  'opening', -30, 30),
+  ('Apertura · Perecederos y frío',   'Perecederos exhibidos y equipos de frío en rango', 'apertura', '06:30', '07:30', true,  'opening', -30, 30),
+  ('Apertura · Cajas y personal',     'Personal, cajas y servicios listos',               'apertura', '06:45', '07:30', false, 'opening', -15, 30),
+  ('Cierre · Piso y perecederos',     'Resguardo de perecederos y piso en orden',         'cierre',   '21:00', '22:00', false, 'closing', -60,  0),
+  ('Cierre · Cajas y valores',        'Cortes de caja y resguardo de efectivo',           'cierre',   '21:30', '22:30', true,  'closing', -30, 30),
+  ('Cierre · Seguridad',              'Tienda cerrada y asegurada',                       'cierre',   '22:00', '23:00', true,  'closing',   0, 60)
+) as v(title, descr, shift, st, et, ev, anchor, so, eo)
+where not exists (select 1 from public.checklist_templates t where t.company_id = c.id and t.title = v.title);
+
+insert into public.checklist_questions (template_id, position, text, answer_type, is_required, is_critical)
+select t.id, q.pos, q.txt, q.typ, q.req, q.crit
+from public.checklist_templates t
+join public.departments d on d.id = t.department_id and d.code = 'GER'
+join (values
+  ('Apertura · Exterior y seguridad', 1, 'Estacionamiento limpio e iluminado', 'yes_no', true, false),
+  ('Apertura · Exterior y seguridad', 2, 'Fachada y anuncios encendidos', 'yes_no', true, false),
+  ('Apertura · Exterior y seguridad', 3, 'Accesos y salidas de emergencia libres', 'yes_no', true, true),
+  ('Apertura · Exterior y seguridad', 4, 'Alarma desactivada correctamente', 'yes_no', true, true),
+  ('Apertura · Exterior y seguridad', 5, 'Cámaras de vigilancia grabando', 'yes_no', true, true),
+  ('Apertura · Exterior y seguridad', 6, 'Carritos y canastillas en su lugar', 'yes_no', true, false),
+
+  ('Apertura · Piso de venta', 1, 'Pisos limpios y secos', 'yes_no', true, false),
+  ('Apertura · Piso de venta', 2, 'Pasillos sin obstáculos ni tarimas', 'yes_no', true, false),
+  ('Apertura · Piso de venta', 3, 'Anaqueles surtidos sin huecos visibles', 'yes_no', true, false),
+  ('Apertura · Piso de venta', 4, 'Cabeceras armadas según la promoción vigente', 'yes_no', true, false),
+  ('Apertura · Piso de venta', 5, 'Cenefas y precios de oferta colocados', 'yes_no', true, false),
+  ('Apertura · Piso de venta', 6, 'Señalización correcta', 'yes_no', true, false),
+  ('Apertura · Piso de venta', 7, 'Música y aire acondicionado funcionando', 'yes_no', true, false),
+
+  ('Apertura · Perecederos y frío', 1, 'Temperaturas de cámaras y vitrinas en rango', 'yes_no', true, false),
+  ('Apertura · Perecederos y frío', 2, 'Fruta y verdura surtida y sin producto en mal estado', 'yes_no', true, false),
+  ('Apertura · Perecederos y frío', 3, 'Carnes y salchichonería exhibidas correctamente', 'yes_no', true, false),
+  ('Apertura · Perecederos y frío', 4, 'Panadería y tortillería listas', 'yes_no', true, false),
+  ('Apertura · Perecederos y frío', 5, 'Sin producto caducado en exhibición', 'yes_no', true, true),
+
+  ('Apertura · Cajas y personal', 1, 'Personal completo y uniformado', 'yes_no', true, false),
+  ('Apertura · Cajas y personal', 2, 'Cajas con fondo asignado', 'yes_no', true, true),
+  ('Apertura · Cajas y personal', 3, 'Terminales y básculas funcionando', 'yes_no', true, false),
+  ('Apertura · Cajas y personal', 4, 'Bolsas e insumos en cajas', 'yes_no', true, false),
+  ('Apertura · Cajas y personal', 5, 'Baños limpios y surtidos', 'yes_no', true, false),
+
+  ('Cierre · Piso y perecederos', 1, 'Perecederos retirados o resguardados', 'yes_no', true, false),
+  ('Cierre · Piso y perecederos', 2, 'Merma del día registrada', 'yes_no', true, false),
+  ('Cierre · Piso y perecederos', 3, 'Cámaras cerradas y en rango', 'yes_no', true, false),
+  ('Cierre · Piso y perecederos', 4, 'Piso limpio', 'yes_no', true, false),
+  ('Cierre · Piso y perecederos', 5, 'Producto devuelto a su lugar', 'yes_no', true, false),
+
+  ('Cierre · Cajas y valores', 1, 'Cortes de caja realizados', 'yes_no', true, true),
+  ('Cierre · Cajas y valores', 2, 'Efectivo resguardado en caja fuerte', 'yes_no', true, true),
+  ('Cierre · Cajas y valores', 3, 'Diferencias de caja reportadas', 'yes_no', true, true),
+  ('Cierre · Cajas y valores', 4, 'Terminales cerradas', 'yes_no', true, false),
+
+  ('Cierre · Seguridad', 1, 'Equipos no esenciales apagados', 'yes_no', true, false),
+  ('Cierre · Seguridad', 2, 'Puertas y accesos cerrados', 'yes_no', true, true),
+  ('Cierre · Seguridad', 3, 'Alarma activada', 'yes_no', true, true),
+  ('Cierre · Seguridad', 4, 'Pendientes para el turno de mañana', 'text', false, false)
+) as q(title, pos, txt, typ, req, crit) on q.title = t.title
+where not exists (select 1 from public.checklist_questions x where x.template_id = t.id);
+
+-- El gerente llena y revisa los checklists de su sucursal.
+insert into public.role_permissions (role_id, permission_code)
+select r.id, p.code
+from public.roles r
+cross join (values ('fill_checklists'), ('review_checklists'), ('upload_evidence')) as p(code)
+where r.code = 'gerente'
+on conflict do nothing;
+
+-- Los gerentes demo pertenecen a Gerencia (así aparecen en «Míos»).
+update public.employees e set department_id = d.id
+from public.departments d, public.roles r
+where r.id = e.role_id and r.code = 'gerente' and e.department_id is null
+  and d.company_id = e.company_id and d.code = 'GER';
+
+select public.generate_checklist_runs(id, public.company_today(id)) from public.companies;
+
+
+-- >>>>>>>>>>>>>>>> seed/0012_temperaturas_y_mermas.sql <<<<<<<<<<<<<<<<
+-- =============================================================================
+-- OPERALIA · SEMILLA 0012 · TEMPERATURAS CON RANGO Y PERMISO DE MERMAS
+-- -----------------------------------------------------------------------------
+-- Requiere la migración 0014. Re-ejecutable.
+--   * Las preguntas sí/no de temperatura se retiran (is_active = false, el
+--     historial se conserva) y se agregan lecturas numéricas por equipo:
+--       refrigeración 0 a 4 °C · congelación −25 a −18 °C
+--   * Las lecturas numéricas que ya existían (Control de temperaturas) reciben
+--     su rango y equipo.
+--   * register_waste para gerente, almacén, abarrotes, caducidades y admin.
+-- =============================================================================
+
+-- ─── Retirar preguntas sí/no de temperatura ─────────────────────────────────
+update public.checklist_questions q set is_active = false
+  from public.checklist_templates t
+ where t.id = q.template_id and q.is_active
+   and (t.title, q.text) in (
+     ('Apertura · Perecederos y frío', 'Temperaturas de cámaras y vitrinas en rango'),
+     ('Cierre · Piso y perecederos', 'Cámaras cerradas y en rango'),
+     ('Control de temperaturas', '¿Alguna temperatura fuera de rango?'));
+
+-- ─── Lecturas numéricas nuevas ──────────────────────────────────────────────
+insert into public.checklist_questions (template_id, position, text, answer_type, is_required, min_value, max_value, unit, equipment_name)
+select t.id, v.pos, v.txt, v.typ, true, v.mn, v.mx, v.unit, v.equipment
+from public.checklist_templates t
+join (values
+  ('Apertura · Perecederos y frío', 6, 'Temperatura cámara de refrigeración', 'number', 0::numeric, 4::numeric, '°C', 'Cámara de refrigeración'),
+  ('Apertura · Perecederos y frío', 7, 'Temperatura cámara de congelación',   'number', -25, -18, '°C', 'Cámara de congelación'),
+  ('Apertura · Perecederos y frío', 8, 'Temperatura vitrina de lácteos',      'number', 0, 4, '°C', 'Vitrina de lácteos'),
+  ('Apertura · Perecederos y frío', 9, 'Temperatura vitrina de carnes',       'number', 0, 4, '°C', 'Vitrina de carnes'),
+  ('Cierre · Piso y perecederos', 6, 'Cámaras cerradas',                                'yes_no', null, null, null, null),
+  ('Cierre · Piso y perecederos', 7, 'Temperatura cámara de refrigeración al cierre', 'number', 0, 4, '°C', 'Cámara de refrigeración'),
+  ('Cierre · Piso y perecederos', 8, 'Temperatura cámara de congelación al cierre',   'number', -25, -18, '°C', 'Cámara de congelación')
+) as v(title, pos, txt, typ, mn, mx, unit, equipment) on v.title = t.title
+where not exists (select 1 from public.checklist_questions x where x.template_id = t.id and x.text = v.txt);
+
+-- ─── Rango a las lecturas que ya eran numéricas ─────────────────────────────
+update public.checklist_questions q
+   set min_value = v.mn, max_value = v.mx, unit = '°C', equipment_name = v.equipment
+  from public.checklist_templates t,
+       (values ('Temperatura refrigerador lácteos (°C)', 0::numeric, 4::numeric, 'Vitrina de lácteos'),
+               ('Temperatura vitrina carnes (°C)', 0, 4, 'Vitrina de carnes')) as v(txt, mn, mx, equipment)
+ where t.id = q.template_id and t.title = 'Control de temperaturas' and q.text = v.txt
+   and q.equipment_name is null;
+
+-- ─── Permiso de mermas ──────────────────────────────────────────────────────
+insert into public.role_permissions (role_id, permission_code)
+select r.id, 'register_waste' from public.roles r
+where r.code in ('admin', 'gerente', 'almacen', 'abarrotes', 'caducidades')
+on conflict do nothing;
+
+
+-- >>>>>>>>>>>>>>>> seed/0013_zonas_jefe_escaner.sql <<<<<<<<<<<<<<<<
+-- =============================================================================
+-- OPERALIA · SEMILLA 0013 · ZONAS Y JEFE DE ESCÁNER
+-- -----------------------------------------------------------------------------
+-- Requiere la migración 0015. Re-ejecutable.
+--   * Zonas Norte, Sur, Este, Oeste y Centro por empresa.
+--   * Sucursales demo: 001 Centro → zona Centro, 002 Norte → Norte, 003 Sur → Sur.
+--   * Rol jefe_escaner (alcance 'zone'): permisos de escáner + validar cenefas,
+--     reportes y asignar tareas (solo al departamento Escáner de sus tiendas).
+--   * Usuarios demo: jefe.escaner (zonas Centro y Norte) y escaner.norte.
+--     jefe.escaner NO ve la Sucursal Sur (zona Sur): ver pruebas en verificar.sql.
+-- =============================================================================
+
+insert into public.zones (company_id, code, name)
+select c.id, v.code, v.name
+from public.companies c
+cross join (values ('NOR', 'Norte'), ('SUR', 'Sur'), ('EST', 'Este'), ('OES', 'Oeste'), ('CEN', 'Centro')) as v(code, name)
+on conflict (company_id, code) do nothing;
+
+update public.branches b set zone_id = z.id
+  from public.zones z
+ where z.company_id = b.company_id and b.zone_id is null
+   and z.code = case b.code when '001' then 'CEN' when '002' then 'NOR' when '003' then 'SUR' end;
+
+insert into public.roles (company_id, code, name, scope, is_system, description)
+select c.id, 'jefe_escaner', 'Jefe de Escáner', 'zone', true, 'Supervisa ofertas, precios, señalización y cabeceras de las tiendas de sus zonas'
+from public.companies c
+on conflict (company_id, code) do nothing;
+
+insert into public.role_permissions (role_id, permission_code)
+select r.id, p.code
+from public.roles r
+cross join (values
+  ('view_dashboard'), ('view_inventory'), ('view_prices'), ('scan_products'), ('report_price_difference'),
+  ('manage_price_changes'), ('manage_shelf_tags'), ('validate_shelf_tags'), ('fill_checklists'),
+  ('upload_evidence'), ('view_tasks'), ('manage_tasks'), ('view_reports'), ('create_tickets')
+) as p(code)
+where r.code = 'jefe_escaner'
+on conflict do nothing;
+
+-- Función temporal (copia de la de seed/0009) para crear empleado + cuenta.
+create or replace function public._seed_user(
+  p_username text, p_password text, p_full_name text, p_role text,
+  p_branch_code text, p_dept_code text, p_position text, p_employee_code text)
+returns uuid language plpgsql security definer set search_path = public, extensions as $$
+declare
+  v_company uuid := 'c0000000-0000-4000-8000-000000000001';
+  v_email   text := lower(p_username) || '@operalia.local';
+  v_emp     uuid;
+  v_user    uuid;
+begin
+  -- 1) Empleado
+  select id into v_emp from public.employees where lower(username) = lower(p_username);
+  if v_emp is null then
+    insert into public.employees (company_id, branch_id, department_id, role_id, employee_code,
+                                  username, full_name, position, email)
+    values (
+      v_company,
+      (select id from public.branches where company_id = v_company and code = p_branch_code),
+      (select id from public.departments where company_id = v_company and code = p_dept_code),
+      (select id from public.roles where company_id = v_company and code = p_role),
+      p_employee_code, lower(p_username), p_full_name, p_position, v_email)
+    returning id into v_emp;
+  end if;
+
+  -- 2) Cuenta de Supabase Auth (el trigger on_auth_user_created la liga al empleado)
+  select id into v_user from auth.users where email = v_email;
+  if v_user is null then
+    v_user := gen_random_uuid();
+    insert into auth.users (
+      instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+      raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+      confirmation_token, email_change, email_change_token_new, recovery_token)
+    values (
+      '00000000-0000-0000-0000-000000000000', v_user, 'authenticated', 'authenticated', v_email,
+      crypt(p_password, gen_salt('bf')), now(),
+      '{"provider":"email","providers":["email"]}'::jsonb,
+      jsonb_build_object('username', lower(p_username), 'full_name', p_full_name),
+      now(), now(), '', '', '', '');
+
+    insert into auth.identities (id, user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
+    values (gen_random_uuid(), v_user, v_user::text,
+            jsonb_build_object('sub', v_user::text, 'email', v_email, 'email_verified', true),
+            'email', now(), now(), now());
+  end if;
+
+  -- 3) Asegurar el vínculo (por si el empleado se creó después que la cuenta)
+  update public.employees set user_id = v_user where id = v_emp and user_id is null;
+  return v_emp;
+end $$;
+
+select public._seed_user('jefe.escaner',  'prueba123', 'Raúl Jefe de Escáner', 'jefe_escaner', '001', 'ESC', 'Jefe de escáner (zonas Centro y Norte)', 'EMP-0015');
+select public._seed_user('escaner.norte', 'prueba123', 'Diana Escáner Norte',  'escaner',      '002', 'ESC', 'Encargada de escáner',                   'EMP-0016');
+
+drop function public._seed_user(text, text, text, text, text, text, text, text);
+
+insert into public.employee_zones (employee_id, zone_id)
+select e.id, z.id
+from public.employees e
+join public.zones z on z.company_id = e.company_id and z.code in ('CEN', 'NOR')
+where e.username = 'jefe.escaner'
+on conflict do nothing;
+
+
+-- >>>>>>>>>>>>>>>> seed/0014_checklists_repetidos.sql <<<<<<<<<<<<<<<<
+-- =============================================================================
+-- OPERALIA · SEMILLA 0014 · EJEMPLO DE CHECKLIST CON RONDAS
+-- -----------------------------------------------------------------------------
+-- «Ronda de carritos y canastillas» del departamento Cajas: cada 2 horas de
+-- 08:00 a 20:00 (7 rondas de 2 h cada una). Requiere la migración 0016.
+-- Re-ejecutable (no duplica por título).
+-- =============================================================================
+
+insert into public.checklist_templates
+  (company_id, department_id, title, description, shift, start_time, end_time, frequency,
+   requires_evidence, repeat_every_minutes, repeat_until)
+select c.id, d.id, 'Ronda de carritos y canastillas',
+       'Recolectar carritos del estacionamiento y acomodar canastillas en la entrada',
+       'especial', '08:00', '10:00', 'daily', false, 120, '20:00'
+from public.companies c
+join public.departments d on d.company_id = c.id and d.code = 'CAJ'
+where not exists (select 1 from public.checklist_templates t where t.company_id = c.id and t.title = 'Ronda de carritos y canastillas');
+
+insert into public.checklist_questions (template_id, position, text, answer_type, is_required, requires_photo)
+select t.id, q.pos, q.txt, q.typ, q.req, q.photo
+from public.checklist_templates t
+join (values
+  (1, 'Carritos recolectados del estacionamiento', 'yes_no', true, false),
+  (2, 'Canastillas acomodadas en la entrada', 'yes_no', true, false),
+  (3, 'Carritos dañados encontrados (cantidad)', 'number', false, false),
+  (4, 'Foto del área de carritos', 'photo', true, true)
+) as q(pos, txt, typ, req, photo) on true
+where t.title = 'Ronda de carritos y canastillas'
+  and not exists (select 1 from public.checklist_questions x where x.template_id = t.id);
+
+select public.generate_checklist_runs(id, public.company_today(id)) from public.companies;

@@ -5,8 +5,10 @@
  *   (eliminar solo mientras está pendiente; la BD lo valida).
  * - Filtros por texto, departamento y prioridad. Clic en la fila abre el detalle
  *   con sus evidencias.
+ * - Acepta filtros por URL (desde Estadísticas): ?tab=all&done=1&dept=&prio=&late=1&assignee=&age=
  */
 import { useCallback, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { ListTodo, Plus, Trash2 } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useAsync } from '../../hooks/useAsync'
@@ -16,7 +18,7 @@ import { getTasks, createTask, updateTask, setTaskStatus, deleteTask } from '../
 import { getAssignableEmployees } from '../../services/employeeService'
 import { getDepartments } from '../../services/organizationService'
 import { getEvidence } from '../../services/evidenceService'
-import { PRIORITY, TASK_STATUS, toOptions } from '../../constants/status'
+import { PRIORITY, TASK_AGE_BUCKETS, TASK_STATUS, taskAgeBucket, toOptions } from '../../constants/status'
 import { formatDate, formatDateTime, todayISO } from '../../utils/formatters'
 import PageHeader from '../../components/ui/PageHeader'
 import Card from '../../components/ui/Card'
@@ -30,6 +32,7 @@ import Modal from '../../components/ui/Modal'
 import Input, { Textarea } from '../../components/ui/Input'
 import Select from '../../components/ui/Select'
 import { ErrorState } from '../../components/ui/Feedback'
+import FilterChip from '../../components/ui/FilterChip'
 import EvidenceUploader from '../../components/domain/EvidenceUploader'
 import EvidenceGallery from '../../components/domain/EvidenceGallery'
 
@@ -41,11 +44,16 @@ export default function TasksPage() {
   const { branchFilter, workingBranchId, hasPermission, profile } = useAuth()
   const toast = useToast()
   const canManage = hasPermission(P.MANAGE_TASKS)
-  const [tab, setTab] = useState('mine')
-  const [showDone, setShowDone] = useState(false)
+  const canSeeAll = canManage || hasPermission(P.VIEW_REPORTS)
+  const [params] = useSearchParams()
+  const [tab, setTab] = useState(() => (params.get('tab') === 'all' && canSeeAll ? 'all' : 'mine'))
+  const [showDone, setShowDone] = useState(() => params.get('done') === '1')
   const [search, setSearch] = useState('')
-  const [deptFilter, setDeptFilter] = useState('')
-  const [prioFilter, setPrioFilter] = useState('')
+  const [deptFilter, setDeptFilter] = useState(() => params.get('dept') ?? '')
+  const [prioFilter, setPrioFilter] = useState(() => params.get('prio') ?? '')
+  const [lateOnly, setLateOnly] = useState(() => params.get('late') === '1')
+  const [assignee, setAssignee] = useState(() => params.get('assignee') ?? '')
+  const [age, setAge] = useState(() => params.get('age') ?? '')
   const [form, setForm] = useState(null)          // crear / editar
   const [detail, setDetail] = useState(null)      // ver detalle + evidencias
   const [completing, setCompleting] = useState(null)
@@ -65,8 +73,11 @@ export default function TasksPage() {
       && (showDone || OPEN.includes(t.status))
       && (!deptFilter || t.department_id === deptFilter)
       && (!prioFilter || t.priority === prioFilter)
+      && (!lateOnly || t.is_late)
+      && (!assignee || t.assigned_to === assignee)
+      && (!age || (OPEN.includes(t.status) && taskAgeBucket(t.created_at) === age))
       && (!q || `${t.title} ${t.description ?? ''} ${t.assigned_to_name ?? ''}`.toLowerCase().includes(q)))
-  }, [all, tab, showDone, deptFilter, prioFilter, search, profile.id])
+  }, [all, tab, showDone, deptFilter, prioFilter, lateOnly, assignee, age, search, profile.id])
 
   const run = async (fn, msg) => {
     try { await fn(); toast.success(msg); reload(); return true } catch (err) { toast.error(err.message); return false }
@@ -123,7 +134,7 @@ export default function TasksPage() {
         actions={canManage && <Button size="sm" onClick={() => setForm({ ...EMPTY, department_id: profile.department_id ?? '' })}><Plus size={14} /> Nueva tarea</Button>} />
       <Tabs active={tab} onChange={setTab} tabs={[
         { key: 'mine', label: 'Mis tareas', count: all.filter((t) => t.assigned_to === profile.id && OPEN.includes(t.status)).length },
-        ...(canManage ? [{ key: 'all', label: 'Todas' }] : []),
+        ...(canSeeAll ? [{ key: 'all', label: 'Todas' }] : []),
       ]} />
       <div className="filters">
         <SearchInput value={search} onChange={setSearch} placeholder="Buscar tarea o responsable…" />
@@ -136,6 +147,9 @@ export default function TasksPage() {
           {toOptions(PRIORITY).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
         <label className="checkbox"><input type="checkbox" checked={showDone} onChange={(e) => setShowDone(e.target.checked)} /> Incluir completadas y canceladas</label>
+        {lateOnly && <FilterChip label="Solo atrasadas" onClear={() => setLateOnly(false)} />}
+        {age && <FilterChip label={`Abiertas hace ${TASK_AGE_BUCKETS.find((b) => b.key === age)?.label ?? age}`} onClear={() => setAge('')} />}
+        {assignee && <FilterChip label={`Responsable: ${all.find((t) => t.assigned_to === assignee)?.assigned_to_name ?? 'seleccionado'}`} onClear={() => setAssignee('')} />}
       </div>
       {error && <ErrorState error={error} onRetry={reload} />}
       <Card flush>

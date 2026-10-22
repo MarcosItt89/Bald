@@ -8,6 +8,7 @@
  * El precio anterior lo toma la BD (no se puede falsear desde el cliente).
  */
 import { useCallback, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { DollarSign, Plus } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useAsync } from '../../hooks/useAsync'
@@ -15,6 +16,7 @@ import { useToast } from '../../hooks/useToast'
 import { P } from '../../config/permissions'
 import { getPriceChanges, createPriceChange, cancelPriceChange } from '../../services/priceChangeService'
 import { PRICE_CHANGE_STATUS } from '../../constants/status'
+import { getZones } from '../../services/organizationService'
 import { formatCurrency, formatDate, formatDateTime, todayISO } from '../../utils/formatters'
 import PageHeader from '../../components/ui/PageHeader'
 import Card from '../../components/ui/Card'
@@ -25,6 +27,7 @@ import Badge from '../../components/ui/Badge'
 import StatusBadge from '../../components/ui/StatusBadge'
 import Modal from '../../components/ui/Modal'
 import Input, { Textarea } from '../../components/ui/Input'
+import Select from '../../components/ui/Select'
 import ProgressBar from '../../components/ui/ProgressBar'
 import { ErrorState } from '../../components/ui/Feedback'
 import ProductPicker from '../../components/domain/ProductPicker'
@@ -33,7 +36,8 @@ export default function PriceChangesPage() {
   const { branchFilter, hasPermission } = useAuth()
   const toast = useToast()
   const canManage = hasPermission(P.MANAGE_PRICE_CHANGES)
-  const [tab, setTab] = useState('all')
+  const [params] = useSearchParams()
+  const [tab, setTab] = useState(() => params.get('tab') ?? 'all')
   const [creating, setCreating] = useState(false)
 
   const load = useCallback(() => getPriceChanges({ branchId: branchFilter }), [branchFilter])
@@ -53,7 +57,7 @@ export default function PriceChangesPage() {
       return <><strong>{formatCurrency(v)}</strong><div className={`cell-sub ${diff > 0 ? 'td-danger' : 'td-ok'}`}>{diff > 0 ? '▲' : '▼'} {Math.abs(diff).toFixed(1)}%</div></>
     } },
     { key: 'effective_date', label: 'Efectivo', sortable: true, render: formatDate },
-    { key: 'branch_name', label: 'Alcance', render: (v) => v ?? <Badge color="primary">Todas las sucursales</Badge> },
+    { key: 'branch_name', label: 'Alcance', render: (v, r) => v ?? (r.zone_name ? <Badge color="info">Zona {r.zone_name}</Badge> : <Badge color="primary">Todas las sucursales</Badge>) },
     { key: 'tags_total', label: 'Cenefas', render: (v, r) => (!r.requires_tag ? <span className="text-muted">No requiere</span>
       : r.status !== 'applied' ? '—'
       : <ProgressBar value={Number(r.tags_validated)} total={Number(v)} label={`${r.tags_validated}/${v}`} width={60} />) },
@@ -83,12 +87,24 @@ export default function PriceChangesPage() {
 }
 
 function NewPriceChangeModal({ onClose, onSaved }) {
-  const { isCompanyScope, workingBranchId, profile } = useAuth()
+  const { isCompanyScope, isZoneScope, zoneIds, workingBranchId, profile } = useAuth()
   const toast = useToast()
   const [product, setProduct] = useState(null)
+  // Alcance: toda la empresa (admin), una zona (admin o jefe de zona) o la sucursal de trabajo.
   const [form, setForm] = useState({
-    new_price: '', effective_date: todayISO(), allBranches: isCompanyScope, requires_tag: true, reason: '',
+    new_price: '', effective_date: todayISO(), scope: isCompanyScope ? 'all' : 'branch', zone_id: '', requires_tag: true, reason: '',
   })
+  const loadZones = useCallback(async () => {
+    if (!isCompanyScope && !isZoneScope) return []
+    const all = await getZones({ onlyActive: true })
+    return isZoneScope ? all.filter((z) => zoneIds.includes(z.id)) : all
+  }, [isCompanyScope, isZoneScope, zoneIds])
+  const { data: zones = [] } = useAsync(loadZones)
+  const scopeOptions = [
+    ...(isCompanyScope ? [{ value: 'all', label: 'Todas las sucursales' }] : []),
+    ...(zones.length ? [{ value: 'zone', label: 'Una zona (oferta por zona)' }] : []),
+    { value: 'branch', label: `Solo ${profile.branch_name ?? 'la sucursal seleccionada'}` },
+  ]
   const [saving, setSaving] = useState(false)
 
   const newPrice = Number(form.new_price)
@@ -100,7 +116,8 @@ function NewPriceChangeModal({ onClose, onSaved }) {
     try {
       const saved = await createPriceChange({
         product_id: product.id,
-        branch_id: form.allBranches ? null : workingBranchId,
+        branch_id: form.scope === 'branch' ? workingBranchId : null,
+        zone_id: form.scope === 'zone' ? form.zone_id : null,
         new_price: newPrice,
         effective_date: form.effective_date,
         reason: form.reason,
@@ -120,7 +137,7 @@ function NewPriceChangeModal({ onClose, onSaved }) {
       footer={<>
         <Button variant="ghost" onClick={onClose}>Cancelar</Button>
         <Button type="submit" form="price-form" loading={saving}
-          disabled={!product || !(newPrice > 0) || newPrice === Number(product?.price)}>Guardar cambio</Button>
+          disabled={!product || !(newPrice > 0) || newPrice === Number(product?.price) || (form.scope === 'zone' && !form.zone_id)}>Guardar cambio</Button>
       </>}>
       <form id="price-form" className="form-stack" onSubmit={submit}>
         <ProductPicker value={product} onSelect={setProduct} autoFocus />
@@ -139,12 +156,20 @@ function NewPriceChangeModal({ onClose, onSaved }) {
         <div className="form-inline">
           <label className="checkbox"><input type="checkbox" checked={form.requires_tag}
             onChange={(e) => setForm({ ...form, requires_tag: e.target.checked })} /> Requiere cenefa nueva</label>
-          {isCompanyScope && (
-            <label className="checkbox"><input type="checkbox" checked={form.allBranches}
-              onChange={(e) => setForm({ ...form, allBranches: e.target.checked })} /> Aplicar en todas las sucursales</label>
+        </div>
+        <div className="form-grid">
+          <Select label="Aplicar en" value={form.scope} options={scopeOptions} onChange={(e) => setForm({ ...form, scope: e.target.value })} />
+          {form.scope === 'zone' && (
+            <Select label="Zona" required value={form.zone_id} placeholder="Selecciona…"
+              options={zones.map((z) => ({ value: z.id, label: `${z.name} (${z.branches?.length ?? 0} suc.)` }))}
+              onChange={(e) => setForm({ ...form, zone_id: e.target.value })} />
           )}
         </div>
-        {!form.allBranches && <p className="text-muted text-sm">Aplica solo en {profile.branch_name ?? 'la sucursal seleccionada'}.</p>}
+        <p className="text-muted text-sm">
+          {form.scope === 'all' ? 'Cambia el precio base del producto en todas las sucursales.'
+            : form.scope === 'zone' ? 'El precio y las cenefas se aplican a cada sucursal activa de la zona; el resto conserva su precio.'
+            : 'Solo esta sucursal tendrá el precio nuevo.'}
+        </p>
       </form>
     </Modal>
   )

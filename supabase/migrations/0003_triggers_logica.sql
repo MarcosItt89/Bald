@@ -567,10 +567,14 @@ begin
   from public.checklist_templates t
   join public.branches b on b.company_id = t.company_id and b.status = 'active'
   where t.company_id = p_company_id and t.is_active
+    -- Las rondas de un día se generan juntas; si ya hay corridas de ese día no se agregan más
+    -- (así cambiar la hora o la repetición de una plantilla aplica desde el día siguiente).
+    and not exists (select 1 from public.checklist_runs x
+                    where x.template_id = t.id and x.branch_id = b.id and x.scheduled_date = p_date)
     and (t.frequency = 'daily'
       or (t.frequency = 'weekdays' and extract(isodow from p_date) < 6)
       or (t.frequency = 'weekly' and extract(dow from p_date) = t.weekday))
-  on conflict (template_id, branch_id, scheduled_date) do nothing;
+  on conflict do nothing;
   get diagnostics v_rows = row_count;
   return v_rows;
 end $$;

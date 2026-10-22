@@ -1,347 +1,232 @@
-import { useState, useMemo } from 'react'
-import {
-  CheckSquare, Clock, AlertTriangle, ChevronDown, ChevronRight,
-  Filter, History, Plus, Eye,
-} from 'lucide-react'
-import { useAuth } from '../../contexts/AuthContext'
-import { MOCK_CHECKLIST_RUNS } from '../../data/mockData'
-import { MOCK_BRANCHES } from '../../data/mockData'
-import { DEPARTMENTS } from '../../utils/departments'
-import { CHECKLIST_RUN_STATUS, CHECKLIST_REVIEW_STATUS } from '../../utils/statusHelpers'
-import StatusBadge from '../../components/ui/StatusBadge'
-import Badge from '../../components/ui/Badge'
+/**
+ * ChecklistsPage — checklists / bitácoras del día (Objetivos §11.6 y §11.7).
+ *
+ * - Datos reales de Supabase (vista v_checklist_runs). Al abrir la página del
+ *   día actual se ejecuta run_daily_maintenance(): genera los checklists de
+ *   hoy y marca como vencidos los que pasaron su hora límite.
+ * - Pestañas por estado + filtros de departamento, sucursal y fecha.
+ * - "Iniciar" pasa el checklist a En progreso y abre la ejecución.
+ * - La flecha ▸ expande la tarjeta y muestra sus ítems con la respuesta.
+ * - El estado "vencido" se recalcula cada minuto con la hora local, así un
+ *   checklist se ve vencido en cuanto pasa su hora límite, sin recargar.
+ */
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { CheckSquare, ChevronDown, ChevronRight, Clock, Play, RefreshCw, Settings } from 'lucide-react'
+import { useAuth } from '../../hooks/useAuth'
+import { useAsync } from '../../hooks/useAsync'
+import { useToast } from '../../hooks/useToast'
+import { P } from '../../config/permissions'
+import { getRuns, getRunDetail, runDailyMaintenance, startRun } from '../../services/checklistService'
+import { getBranches, getDepartments } from '../../services/organizationService'
+import { CHECKLIST_REVIEW_STATUS, CHECKLIST_RUN_STATUS, SHIFTS } from '../../constants/status'
+import { formatDate, formatTime, todayISO } from '../../utils/formatters'
+import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
+import Badge from '../../components/ui/Badge'
+import Tabs from '../../components/ui/Tabs'
+import StatusBadge from '../../components/ui/StatusBadge'
+import ProgressBar from '../../components/ui/ProgressBar'
+import { EmptyState, ErrorState, Loader } from '../../components/ui/Feedback'
+import ChecklistRunModal from './ChecklistRunModal'
 
-// TODO: Replace MOCK_CHECKLIST_RUNS with:
-//   supabase.from('checklist_runs')
-//     .select('*, checklist_assignments(*, checklist_templates(*)), checklist_answers(*)')
-//     .eq('branch_id', user.branch_id)
-//     .gte('scheduled_date', today)
-
-const TODAY = '2026-06-12'
-
-const FILTER_TABS = [
-  { key: 'all',         label: 'Todos'       },
-  { key: 'pending',     label: 'Pendientes'  },
-  { key: 'in_progress', label: 'En progreso' },
-  { key: 'completed',   label: 'Completados' },
-  { key: 'overdue',     label: 'Vencidos'    },
+const TABS = [
+  { key: 'all',         label: 'Todos',       statuses: null },
+  { key: 'pending',     label: 'Pendientes',  statuses: ['pending', 'reopened'] },
+  { key: 'in_progress', label: 'En progreso', statuses: ['in_progress'] },
+  { key: 'completed',   label: 'Completados', statuses: ['completed'] },
+  { key: 'overdue',     label: 'Vencidos',    statuses: ['overdue'] },
 ]
+const ORDER = { overdue: 0, reopened: 1, in_progress: 2, pending: 3, completed: 4, cancelled: 5 }
+const nowHHMM = () => new Date().toTimeString().slice(0, 5)
 
-function ProgressBar({ answered, total }) {
-  const pct = total > 0 ? Math.round((answered / total) * 100) : 0
-  return (
-    <div className="cl-progress-bar">
-      <div className="cl-progress-track">
-        <div className="cl-progress-fill" style={{ width: `${pct}%` }} />
-      </div>
-      <span className="cl-progress-label">{answered}/{total} preguntas</span>
-    </div>
-  )
-}
-
-function QuestionList({ questions, readonly = false }) {
-  return (
-    <div className="cl-question-list">
-      {questions.map(q => {
-        const stateClass = q.answer === true ? 'q-ok' : q.answer === false ? 'q-fail' : 'q-pending'
-        return (
-          <div key={q.id} className={`checklist-question ${stateClass}`}>
-            <span className="q-indicator" />
-            <div className="q-body">
-              <span className="q-text">{q.text}</span>
-              {q.requiresPhoto && (
-                <span className={`q-photo-tag ${q.evidenceUploaded ? 'photo-ok' : 'photo-pending'}`}>
-                  {q.evidenceUploaded ? '📷 Evidencia cargada' : '📷 Evidencia requerida'}
-                </span>
-              )}
-              {q.comment && <span className="q-comment">"{q.comment}"</span>}
-            </div>
-            {readonly && q.answer !== null && (
-              <span className="q-answer-label">
-                {q.answer === true ? 'Sí' : q.answer === false ? 'No' : '—'}
-              </span>
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-function RunCard({ run, expanded, onToggle }) {
-  const isCompleted = run.status === 'completed'
-  const isOverdue   = run.status === 'overdue'
-  const isPending   = run.status === 'pending'
-  const isProgress  = run.status === 'in_progress'
-
-  return (
-    <div className={`cl-run-card ${isOverdue ? 'cl-run-overdue' : ''} ${isCompleted ? 'cl-run-completed' : ''}`}>
-      {/* Header */}
-      <div className="cl-run-header" onClick={onToggle} role="button" tabIndex={0}
-        onKeyDown={e => e.key === 'Enter' && onToggle()}>
-        <div className="cl-run-header-left">
-          <button className="cl-expand-btn">
-            {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-          </button>
-          <div className="cl-run-info">
-            <span className="cl-run-title">{run.title}</span>
-            <div className="cl-run-meta">
-              <span>{run.department}</span>
-              <span>·</span>
-              <span>{run.schedule}</span>
-              <span>·</span>
-              <Clock size={12} />
-              <span>{run.scheduledStart}–{run.scheduledEnd}</span>
-              {run.requiresEvidence && (
-                <Badge color="info" className="cl-evidence-badge">Evidencia requerida</Badge>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="cl-run-header-right">
-          {isProgress && (
-            <ProgressBar answered={run.answeredQuestions} total={run.totalQuestions} />
-          )}
-          {isCompleted && run.reviewStatus && (
-            <StatusBadge statusMap={CHECKLIST_REVIEW_STATUS} value={run.reviewStatus} />
-          )}
-          <StatusBadge statusMap={CHECKLIST_RUN_STATUS} value={run.status} />
-          {(isPending || isProgress) && (
-            <Button variant="primary" size="sm" onClick={e => e.stopPropagation()}>
-              {isPending ? 'Iniciar' : 'Continuar'}
-            </Button>
-          )}
-          {isCompleted && (
-            <Button variant="ghost" size="sm" onClick={e => e.stopPropagation()}>
-              <Eye size={14} /> Ver
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Body expandido */}
-      {expanded && (
-        <div className="cl-run-body">
-          {isOverdue && (
-            <div className="cl-overdue-alert">
-              <AlertTriangle size={16} />
-              <span>Este checklist venció sin completarse. Se requiere permiso para reabrirlo.</span>
-            </div>
-          )}
-          {isCompleted && (
-            <div className="cl-completed-meta">
-              <span><strong>Completado por:</strong> {run.completedBy}</span>
-              {run.startedAt && (
-                <span><strong>Inicio:</strong> {new Date(run.startedAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</span>
-              )}
-              {run.completedAt && (
-                <span><strong>Fin:</strong> {new Date(run.completedAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</span>
-              )}
-            </div>
-          )}
-          <QuestionList questions={run.questions} readonly={isCompleted} />
-        </div>
-      )}
-    </div>
-  )
-}
-
-function Section({ title, icon: Icon, runs, emptyText, defaultExpanded = true, collapsible = false }) {
-  const [open, setOpen] = useState(defaultExpanded)
-  const [expandedRuns, setExpandedRuns] = useState({})
-
-  const toggleRun = (id) =>
-    setExpandedRuns(prev => ({ ...prev, [id]: !prev[id] }))
-
-  if (runs.length === 0) return null
-
-  return (
-    <div className="cl-section">
-      <div className="cl-section-header" onClick={collapsible ? () => setOpen(p => !p) : undefined}
-        style={{ cursor: collapsible ? 'pointer' : 'default' }}>
-        <div className="cl-section-title">
-          <Icon size={16} />
-          <span>{title}</span>
-          <Badge color="default">{runs.length}</Badge>
-        </div>
-        {collapsible && (open ? <ChevronDown size={16} /> : <ChevronRight size={16} />)}
-      </div>
-
-      {open && (
-        <div className="cl-section-body">
-          {runs.length === 0
-            ? <p className="cl-empty">{emptyText}</p>
-            : runs.map(run => (
-              <RunCard
-                key={run.id}
-                run={run}
-                expanded={!!expandedRuns[run.id]}
-                onToggle={() => toggleRun(run.id)}
-              />
-            ))
-          }
-        </div>
-      )}
-    </div>
-  )
+/** Vencido si sigue abierto y ya pasó su fecha u hora límite (reabiertos no vencen). */
+const effectiveStatus = (run, today, now) => {
+  if (!['pending', 'in_progress'].includes(run.status)) return run.status
+  if (run.scheduled_date < today) return 'overdue'
+  if (run.scheduled_date === today && run.scheduled_end.slice(0, 5) < now) return 'overdue'
+  return run.status
 }
 
 export default function ChecklistsPage() {
-  const { user, hasPermission } = useAuth()
+  const { branchFilter, isCompanyScope, hasPermission, profile } = useAuth()
+  const toast = useToast()
+  const canFill = hasPermission(P.FILL_CHECKLISTS)
+  const [tab, setTab] = useState('all')
+  const [date, setDate] = useState(todayISO())
+  const [departmentId, setDepartmentId] = useState('')
+  const [branchId, setBranchId] = useState(null) // null = usar la sucursal del Topbar
+  const [openRunId, setOpenRunId] = useState(null)
+  const [starting, setStarting] = useState(null)
+  const [now, setNow] = useState(nowHHMM)
 
-  const [activeTab,    setActiveTab]    = useState('all')
-  const [deptFilter,   setDeptFilter]   = useState('')
-  const [branchFilter, setBranchFilter] = useState('')
-  const [dateFilter,   setDateFilter]   = useState('')
+  useEffect(() => {
+    const id = setInterval(() => setNow(nowHHMM()), 60_000)
+    return () => clearInterval(id)
+  }, [])
 
-  const canManageTemplates = hasPermission('manage_checklist_templates')
+  const effectiveBranch = isCompanyScope ? (branchId ?? branchFilter) : profile.branch_id
+  const today = todayISO()
 
-  // Filtrado
-  const filtered = useMemo(() => {
-    return MOCK_CHECKLIST_RUNS.filter(run => {
-      if (activeTab !== 'all' && run.status !== activeTab) return false
-      if (deptFilter && run.departmentId !== deptFilter) return false
-      if (branchFilter && run.branchId !== branchFilter) return false
-      if (dateFilter && run.scheduledDate !== dateFilter) return false
-      return true
-    })
-  }, [activeTab, deptFilter, branchFilter, dateFilter])
+  const load = useCallback(async () => {
+    if (date === today) await runDailyMaintenance().catch(() => {}) // no bloquea si falla
+    return getRuns({ branchId: effectiveBranch || undefined, date, departmentId: departmentId || undefined })
+  }, [effectiveBranch, date, departmentId, today])
+  const { data: raw = [], loading, error, reload } = useAsync(load)
+  const { data: departments = [] } = useAsync(getDepartments)
+  const loadBranches = useCallback(() => (isCompanyScope ? getBranches({ onlyActive: true }) : Promise.resolve([])), [isCompanyScope])
+  const { data: branches = [] } = useAsync(loadBranches)
 
-  const pending    = filtered.filter(r => r.status === 'pending')
-  const inProgress = filtered.filter(r => r.status === 'in_progress')
-  const completed  = filtered.filter(r => r.status === 'completed')
-  const overdue    = filtered.filter(r => r.status === 'overdue')
+  const runs = useMemo(() => raw
+    .map((r) => ({ ...r, status: effectiveStatus(r, today, now) }))
+    .sort((a, b) => ORDER[a.status] - ORDER[b.status] || a.scheduled_start.localeCompare(b.scheduled_start)),
+  [raw, today, now])
 
-  const hasFilters = deptFilter || branchFilter || dateFilter
+  const visible = useMemo(() => {
+    const t = TABS.find((x) => x.key === tab)
+    return t.statuses ? runs.filter((r) => t.statuses.includes(r.status)) : runs
+  }, [runs, tab])
+
+  const count = (t) => (t.statuses ? runs.filter((r) => t.statuses.includes(r.status)).length : runs.length)
+  const done = runs.filter((r) => r.status === 'completed').length
+  const valid = runs.filter((r) => r.status !== 'cancelled').length
+
+  const start = async (run) => {
+    setStarting(run.id)
+    try {
+      if (run.status === 'pending' || run.status === 'reopened') await startRun(run.id)
+      setOpenRunId(run.id)
+      reload()
+    } catch (err) {
+      toast.error(err.message)
+      reload()
+    } finally {
+      setStarting(null)
+    }
+  }
+
+  const clearFilters = () => { setDepartmentId(''); setBranchId(null); setDate(today) }
+  const hasFilters = departmentId || branchId !== null || date !== today
 
   return (
     <div className="page">
-      {/* Encabezado */}
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Checklists</h1>
-          <p className="page-subtitle">
-            {dateFilter || TODAY} — {MOCK_CHECKLIST_RUNS.filter(r => r.status === 'pending' || r.status === 'overdue').length} sin completar
-          </p>
-        </div>
-        {canManageTemplates && (
-          <Button variant="primary" size="sm">
-            <Plus size={14} /> Nuevo checklist
-          </Button>
+      <PageHeader icon={CheckSquare} title="Checklists"
+        subtitle={`${formatDate(date)} · ${done} de ${valid} completados`}
+        actions={<>
+          <Button variant="ghost" size="sm" onClick={reload} loading={loading}>{!loading && <RefreshCw size={14} />} Actualizar</Button>
+          {hasPermission(P.MANAGE_CHECKLIST_TEMPLATES) && (
+            <Link to="/checklists/templates" className="btn btn-outline btn-sm"><Settings size={14} /> Plantillas</Link>
+          )}
+        </>} />
+
+      {valid > 0 && <div className="mb-3"><ProgressBar value={done} total={valid} semaphore label={`${Math.round((done / valid) * 100)}% de cumplimiento`} /></div>}
+
+      <Tabs active={tab} onChange={setTab} tabs={TABS.map((t) => ({ key: t.key, label: t.label, count: count(t) }))} />
+
+      <div className="filters">
+        <select className="filter-select" value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
+          <option value="">Todos los departamentos</option>
+          {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+        </select>
+        {isCompanyScope ? (
+          <select className="filter-select" value={effectiveBranch ?? ''} onChange={(e) => setBranchId(e.target.value)}>
+            <option value="">Todas las sucursales</option>
+            {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </select>
+        ) : (
+          <select className="filter-select" disabled value=""><option value="">{profile.branch_name}</option></select>
         )}
+        <input type="date" className="filter-select" value={date} max={today} onChange={(e) => setDate(e.target.value || today)} />
+        {hasFilters && <button className="link-btn" onClick={clearFilters}>Limpiar filtros</button>}
       </div>
 
-      {/* Pestañas de estado */}
-      <div className="cl-tabs">
-        {FILTER_TABS.map(tab => {
-          const count = tab.key === 'all'
-            ? MOCK_CHECKLIST_RUNS.length
-            : MOCK_CHECKLIST_RUNS.filter(r => r.status === tab.key).length
+      {error && <ErrorState error={error} onRetry={reload} />}
+      {loading && !raw.length && <Loader />}
+      {!loading && visible.length === 0 && (
+        <EmptyState icon={CheckSquare} title="No hay checklists con estos filtros"
+          message={runs.length ? 'Prueba otra pestaña o limpia los filtros.' : 'No hay checklists programados para este día.'} />
+      )}
+
+      <div className="cl-section-body">
+        {visible.map((run) => (
+          <RunCard key={run.id} run={run} showBranch={!effectiveBranch} canFill={canFill}
+            starting={starting === run.id} onStart={() => start(run)} onOpen={() => setOpenRunId(run.id)} />
+        ))}
+      </div>
+
+      {openRunId && <ChecklistRunModal runId={openRunId} onClose={() => setOpenRunId(null)} onChanged={reload} />}
+    </div>
+  )
+}
+
+function RunCard({ run, showBranch, canFill, starting, onStart, onOpen }) {
+  const [expanded, setExpanded] = useState(false)
+  const canStart = canFill && ['pending', 'reopened', 'in_progress'].includes(run.status)
+
+  return (
+    <div className={`cl-run-card cl-run-${run.status}`}>
+      <div className="cl-run-header">
+        <button className="cl-expand-btn" onClick={() => setExpanded((e) => !e)} aria-label={expanded ? 'Ocultar ítems' : 'Ver ítems'}>
+          {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+        </button>
+        <span className="cl-dept-dot" style={{ background: run.department_color ?? '#94a3b8' }} />
+        <div className="cl-run-info" onClick={onOpen} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onOpen()}>
+          <span className="cl-run-title">{run.title}</span>
+          <span className="cl-run-meta">
+            {run.department_name ?? 'General'} · {SHIFTS[run.shift]} · <Clock size={11} /> {formatTime(run.scheduled_start)}–{formatTime(run.scheduled_end)}
+            {showBranch && ` · ${run.branch_name}`}
+            {run.completed_by_name && ` · completó ${run.completed_by_name} ${formatTime(run.completed_at)}`}
+          </span>
+        </div>
+        <div className="cl-run-right">
+          {run.requires_evidence && <Badge color="info">Evidencia requerida</Badge>}
+          {['in_progress', 'reopened'].includes(run.status) && (
+            <ProgressBar value={Number(run.answered_questions)} total={Number(run.total_questions)}
+              label={`${run.answered_questions}/${run.total_questions}`} width={60} />
+          )}
+          {run.review_status && <StatusBadge statusMap={CHECKLIST_REVIEW_STATUS} value={run.review_status} />}
+          <StatusBadge statusMap={CHECKLIST_RUN_STATUS} value={run.status} />
+          {canStart ? (
+            <Button size="sm" loading={starting} onClick={onStart}>
+              {!starting && <Play size={12} />} {run.status === 'in_progress' ? 'Continuar' : 'Iniciar'}
+            </Button>
+          ) : (
+            <Button size="sm" variant="ghost" onClick={onOpen}>Ver</Button>
+          )}
+        </div>
+      </div>
+      {expanded && <RunItems runId={run.id} />}
+    </div>
+  )
+}
+
+/** Ítems del checklist con su respuesta (se cargan al expandir). */
+function RunItems({ runId }) {
+  const load = useCallback(() => getRunDetail(runId), [runId])
+  const { data, loading, error } = useAsync(load)
+  if (loading && !data) return <div className="cl-run-body text-muted text-sm">Cargando ítems…</div>
+  if (error) return <div className="cl-run-body text-sm td-danger">{error.message}</div>
+  const byQuestion = Object.fromEntries(data.answers.map((a) => [a.question_id, a]))
+  const label = (v) => ({ yes: 'Sí', no: 'No', na: 'N/A' }[v] ?? v)
+  return (
+    <div className="cl-run-body">
+      <div className="cl-question-list">
+        {data.questions.map((q) => {
+          const a = byQuestion[q.id]
+          const v = a?.answer_value
+          const cls = v == null || v === '' ? 'q-pending' : v === 'no' ? 'q-fail' : 'q-ok'
           return (
-            <button
-              key={tab.key}
-              className={`cl-tab ${activeTab === tab.key ? 'cl-tab-active' : ''}`}
-              onClick={() => setActiveTab(tab.key)}
-            >
-              {tab.label}
-              {count > 0 && <span className="cl-tab-count">{count}</span>}
-            </button>
+            <div key={q.id} className={`checklist-question ${cls}`}>
+              <span className="q-indicator" />
+              <div className="q-body">
+                <span className="q-text">{q.text}{q.is_required && <span className="form-required"> *</span>}</span>
+                {q.requires_photo && <span className="q-photo-tag">📷 Requiere foto</span>}
+                {a?.comment && <span className="q-comment">"{a.comment}"</span>}
+              </div>
+              <span className="q-answer-label">{v ? label(v) : 'Sin responder'}</span>
+            </div>
           )
         })}
-      </div>
-
-      {/* Filtros secundarios */}
-      <div className="cl-filters">
-        <Filter size={14} className="cl-filter-icon" />
-        <select
-          className="cl-filter-select"
-          value={deptFilter}
-          onChange={e => setDeptFilter(e.target.value)}
-        >
-          <option value="">Todos los departamentos</option>
-          {DEPARTMENTS.map(d => (
-            <option key={d.id} value={d.id}>{d.label}</option>
-          ))}
-        </select>
-
-        <select
-          className="cl-filter-select"
-          value={branchFilter}
-          onChange={e => setBranchFilter(e.target.value)}
-        >
-          <option value="">Todas las sucursales</option>
-          {MOCK_BRANCHES.map(b => (
-            <option key={b.id} value={b.id}>{b.name}</option>
-          ))}
-        </select>
-
-        <input
-          type="date"
-          className="cl-filter-date"
-          value={dateFilter}
-          onChange={e => setDateFilter(e.target.value)}
-        />
-
-        {hasFilters && (
-          <button className="cl-clear-filters" onClick={() => {
-            setDeptFilter(''); setBranchFilter(''); setDateFilter('')
-          }}>
-            Limpiar filtros
-          </button>
-        )}
-      </div>
-
-      {/* Secciones */}
-      <div className="cl-sections">
-        {activeTab === 'all' || activeTab === 'overdue' ? (
-          <Section
-            title="Vencidos"
-            icon={AlertTriangle}
-            runs={overdue}
-            emptyText="Sin checklists vencidos"
-            defaultExpanded
-          />
-        ) : null}
-
-        {activeTab === 'all' || activeTab === 'pending' ? (
-          <Section
-            title="Pendientes"
-            icon={Clock}
-            runs={pending}
-            emptyText="Sin checklists pendientes"
-            defaultExpanded
-          />
-        ) : null}
-
-        {activeTab === 'all' || activeTab === 'in_progress' ? (
-          <Section
-            title="En progreso"
-            icon={CheckSquare}
-            runs={inProgress}
-            emptyText="Sin checklists en progreso"
-            defaultExpanded
-          />
-        ) : null}
-
-        {activeTab === 'all' || activeTab === 'completed' ? (
-          <Section
-            title="Historial — Completados"
-            icon={History}
-            runs={completed}
-            emptyText="Sin checklists completados hoy"
-            defaultExpanded={activeTab === 'completed'}
-            collapsible={activeTab === 'all'}
-          />
-        ) : null}
-
-        {filtered.length === 0 && (
-          <div className="cl-empty-state">
-            <CheckSquare size={40} />
-            <p>No hay checklists que coincidan con los filtros seleccionados.</p>
-          </div>
-        )}
       </div>
     </div>
   )

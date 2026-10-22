@@ -1,3 +1,8 @@
+/**
+ * Configuración de ESLint (npm run lint).
+ * - Reglas recomendadas de JS + React Hooks (v7, incluye reglas del React Compiler)
+ * - react-refresh: avisa si un archivo .jsx exporta cosas que no son componentes
+ */
 import js from '@eslint/js'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
@@ -16,6 +21,11 @@ export default defineConfig([
     languageOptions: {
       globals: globals.browser,
       parserOptions: { ecmaFeatures: { jsx: true } },
+    },
+    rules: {
+      // Permite `const { campoDeVista, ...fila } = obj` para descartar columnas
+      // y parámetros/variables con prefijo "_" que se ignoran a propósito.
+      'no-unused-vars': ['error', { ignoreRestSiblings: true, argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
     },
   },
 ])

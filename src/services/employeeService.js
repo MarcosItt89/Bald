@@ -1,16 +1,91 @@
-// TODO: Replace with real Supabase queries
-// import { supabase } from '../lib/supabaseClient'
+/**
+ * Servicio de empleados y sus cuentas de acceso.
+ *
+ * Alta de empleado con cuenta (flujo):
+ *   1. Se inserta el empleado (sin user_id) → requiere manage_employees.
+ *   2. Con un cliente aislado se hace auth.signUp(usuario@dominio).
+ *   3. El trigger on_auth_user_created (SQL) liga la cuenta al empleado cuyo
+ *      username coincide. El cliente NO puede asignar user_id por su cuenta.
+ *
+ * Requisito en Supabase: Authentication → Providers → Email → desactivar
+ * "Confirm email" (los correos @operalia.local no existen).
+ *
+ * Limitación conocida: restablecer la contraseña de OTRO usuario requiere la
+ * service key (Edge Function). Ver docs/guias/configurar-supabase.md.
+ */
+import { supabase, unwrap, createIsolatedClient, friendlyError } from '../lib/supabaseClient'
+import { byBranch, ilikeTerm, emptyToNull } from '../lib/queryHelpers'
+import { usernameToEmail } from '../config/env'
 
-import { MOCK_USERS, ROLES } from '../data/mockData'
-
-export const getEmployees = async (branchId) => {
-  // TODO: return supabase.from('employees').select('*, roles(label, permissions(name))').eq('branch_id', branchId)
-  return { data: MOCK_USERS, error: null }
+export const getEmployees = ({ branchId, status, search } = {}) => {
+  let q = byBranch(supabase.from('v_employees').select('*'), branchId).order('full_name')
+  if (status) q = q.eq('status', status)
+  if (search) {
+    const t = ilikeTerm(search)
+    q = q.or(`full_name.ilike.${t},username.ilike.${t},employee_code.ilike.${t}`)
+  }
+  return unwrap(q)
 }
 
-export const getEmployeePermissions = async (employeeId) => {
-  // TODO: return supabase.from('employee_permissions').select('permission').eq('employee_id', employeeId)
-  const user = MOCK_USERS.find(u => u.id === employeeId)
-  if (!user) return { data: [], error: null }
-  return { data: ROLES[user.role]?.permissions ?? [], error: null }
+/** Empleados activos a los que se les puede asignar algo (tareas, tickets). */
+export const getAssignableEmployees = ({ branchId } = {}) =>
+  unwrap(byBranch(
+    supabase.from('v_employees').select('id, full_name, department_id, department_name, role_name, branch_id')
+      .eq('status', 'active'),
+    branchId,
+  ).order('full_name'))
+
+export const getEmployeeDepartments = (employeeId) =>
+  unwrap(supabase.from('employee_departments').select('department_id').eq('employee_id', employeeId))
+    .then((rows) => rows.map((r) => r.department_id))
+
+export async function setEmployeeDepartments(employeeId, departmentIds) {
+  await unwrap(supabase.from('employee_departments').delete().eq('employee_id', employeeId))
+  if (departmentIds.length) {
+    await unwrap(supabase.from('employee_departments')
+      .insert(departmentIds.map((department_id) => ({ employee_id: employeeId, department_id }))))
+  }
+}
+
+/** Crea la cuenta de Supabase Auth para un empleado ya registrado. */
+export async function createAccount(username, password) {
+  const client = createIsolatedClient()
+  const { error } = await client.auth.signUp({
+    email: usernameToEmail(username),
+    password,
+    options: { data: { username: username.toLowerCase() } },
+  })
+  if (error) throw new Error(`No se pudo crear la cuenta de acceso: ${friendlyError(error)}`)
+}
+
+export async function createEmployee({ password, extraDepartmentIds = [], ...fields }) {
+  const row = emptyToNull({ ...fields, username: fields.username.trim().toLowerCase() })
+  const employee = await unwrap(supabase.from('employees').insert(row).select().single())
+  if (extraDepartmentIds.length) await setEmployeeDepartments(employee.id, extraDepartmentIds)
+  if (password) {
+    try {
+      await createAccount(employee.username, password)
+    } catch (err) {
+      err.message = `El empleado se guardó, pero ${err.message.charAt(0).toLowerCase()}${err.message.slice(1)}`
+      throw err
+    }
+  }
+  return employee
+}
+
+export async function updateEmployee(id, { extraDepartmentIds, ...fields }) {
+  // Columnas que vienen de la vista y no existen en la tabla
+  const {
+    role_code, role_name, role_scope, branch_name, department_name, department_color,
+    has_account, user_id, created_at, updated_at, ...row
+  } = fields
+  const saved = await unwrap(supabase.from('employees').update(emptyToNull(row)).eq('id', id).select().single())
+  if (extraDepartmentIds) await setEmployeeDepartments(id, extraDepartmentIds)
+  return saved
+}
+
+/** El usuario conectado cambia su propia contraseña. */
+export async function changeOwnPassword(newPassword) {
+  const { error } = await supabase.auth.updateUser({ password: newPassword })
+  if (error) throw new Error(friendlyError(error))
 }

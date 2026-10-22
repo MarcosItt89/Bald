@@ -29,7 +29,7 @@ export default function Modal({ open, onClose, title, children, footer, size = '
         onMouseDown={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3 className="modal-title">{title}</h3>
-          <button className="modal-close" onClick={onClose} aria-label="Cerrar"><X size={18} /></button>
+          {onClose && <button className="modal-close" onClick={onClose} aria-label="Cerrar"><X size={18} /></button>}
         </div>
         <div className="modal-body">{children}</div>
         {footer && <div className="modal-footer">{footer}</div>}

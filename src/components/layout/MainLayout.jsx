@@ -11,12 +11,16 @@ import { Suspense, useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Topbar from './Topbar'
+import ChangePasswordModal from './ChangePasswordModal'
+import { useAuth } from '../../hooks/useAuth'
 import { Loader } from '../ui/Feedback'
 
 const isMobile = () => window.matchMedia('(max-width: 900px)').matches
 
 export default function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(() => !isMobile())
+  const { session } = useAuth()
+  const mustChange = session?.user?.user_metadata?.must_change_password === true
 
   return (
     <div className={`app-shell ${sidebarOpen ? 'sidebar-open' : 'sidebar-collapsed'}`}>
@@ -30,6 +34,7 @@ export default function MainLayout() {
           </Suspense>
         </main>
       </div>
+      <ChangePasswordModal open={mustChange} forced />
     </div>
   )
 }

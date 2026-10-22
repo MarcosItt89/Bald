@@ -12,6 +12,7 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Eye, EyeOff, LogIn, AlertCircle, Settings } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import Button from '../../components/ui/Button'
+import ForgotPasswordModal from './ForgotPasswordModal'
 
 export default function LoginPage() {
   const { login, status } = useAuth()
@@ -22,6 +23,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [forgotOpen, setForgotOpen] = useState(false)
 
   const redirectTo = location.state?.from ?? '/dashboard'
   if (status === 'signedIn') return <Navigate to={redirectTo} replace />
@@ -103,6 +105,8 @@ export default function LoginPage() {
               {!loading && <LogIn size={16} />} Entrar
             </Button>
           </form>
+          <button type="button" className="link-btn login-forgot" onClick={() => setForgotOpen(true)}>¿Olvidaste tu contraseña?</button>
+          {forgotOpen && <ForgotPasswordModal open onClose={() => setForgotOpen(false)} initialValue={username} />}
 
         </div>
       </div>

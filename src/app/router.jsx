@@ -18,6 +18,7 @@ import { Loader } from '../components/ui/Feedback'
 const page = (loader) => lazy(loader)
 
 const LoginPage            = page(() => import('../features/auth/LoginPage'))
+const ResetPasswordPage    = page(() => import('../features/auth/ResetPasswordPage'))
 const DashboardPage        = page(() => import('../features/dashboard/DashboardPage'))
 const InventoryPage        = page(() => import('../features/inventory/InventoryPage'))
 const PriceCheckPage       = page(() => import('../features/inventory/PriceCheckPage'))
@@ -82,6 +83,11 @@ export const router = createBrowserRouter([
   {
     path: '/login',
     element: <Suspense fallback={<Loader full />}><LoginPage /></Suspense>,
+    errorElement: <RouteError />,
+  },
+  {
+    path: '/reset-password',
+    element: <Suspense fallback={<Loader full />}><ResetPasswordPage /></Suspense>,
     errorElement: <RouteError />,
   },
   {

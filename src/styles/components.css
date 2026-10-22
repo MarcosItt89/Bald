@@ -349,3 +349,18 @@ button.cl-run-card { width: 100%; display: flex; align-items: center; gap: 12px;
   .ticket-reply .btn { flex: 1; justify-content: center; }
   .rating-star { padding: 8px; }
 }
+
+.login-forgot { display: block; margin: 14px auto 0; font-size: 13px; text-align: center; }
+.login-standalone { min-height: 100vh; min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 16px; background: var(--bg, #f1f5f9); }
+.login-standalone .login-form-card { width: 100%; max-width: 400px; }
+.login-form-logo-show { display: block; }
+.forgot-done { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding: 8px 0; }
+.forgot-done svg { color: var(--primary); }
+.access-box { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px; border: 1px dashed var(--border); border-radius: var(--radius-sm); }
+.badge-icon { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; vertical-align: middle; }
+.input-row { display: flex; align-items: flex-end; gap: 8px; }
+.input-row > :first-child { flex: 1; }
+.input-row > .btn { margin-bottom: 22px; }
+.temp-credentials { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; align-items: center; padding: 12px; background: var(--primary-light); border-radius: var(--radius-sm); }
+.temp-credentials span { font-size: 12px; color: var(--text-muted); }
+.temp-credentials code { font-size: 16px; font-weight: 700; letter-spacing: .5px; user-select: all; }

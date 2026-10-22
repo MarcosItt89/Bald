@@ -77,7 +77,7 @@ export async function updateEmployee(id, { extraDepartmentIds, ...fields }) {
   // Columnas que vienen de la vista y no existen en la tabla
   const {
     role_code, role_name, role_scope, branch_name, department_name, department_color,
-    has_account, user_id, created_at, updated_at, ...row
+    has_account, user_id, is_owner, created_at, updated_at, ...row
   } = fields
   const saved = await unwrap(supabase.from('employees').update(emptyToNull(row)).eq('id', id).select().single())
   if (extraDepartmentIds) await setEmployeeDepartments(id, extraDepartmentIds)
@@ -86,6 +86,30 @@ export async function updateEmployee(id, { extraDepartmentIds, ...fields }) {
 
 /** El usuario conectado cambia su propia contraseña. */
 export async function changeOwnPassword(newPassword) {
-  const { error } = await supabase.auth.updateUser({ password: newPassword })
+  const { error } = await supabase.auth.updateUser({ password: newPassword, data: { must_change_password: false } })
   if (error) throw new Error(friendlyError(error))
+}
+
+export const adminSetPassword = (employeeId, password) =>
+  unwrap(supabase.rpc('admin_set_password', { p_employee_id: employeeId, p_password: password }))
+
+const isRealEmail = (value) => value.includes('@') && !value.toLowerCase().endsWith('@operalia.local')
+
+export async function requestPasswordReset(identifier) {
+  const value = identifier.trim()
+  if (isRealEmail(value)) {
+    const { error } = await supabase.auth.resetPasswordForEmail(value.toLowerCase(), {
+      redirectTo: `${window.location.origin}/reset-password`,
+    })
+    if (error) throw new Error(friendlyError(error))
+    return 'email'
+  }
+  await unwrap(supabase.rpc('request_password_reset', { p_username: value }))
+  return 'admin'
+}
+
+export const generateTempPassword = () => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
+  const bytes = crypto.getRandomValues(new Uint8Array(10))
+  return Array.from(bytes, (b) => chars[b % chars.length]).join('')
 }

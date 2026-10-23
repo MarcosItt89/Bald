@@ -34,6 +34,8 @@ export const P = Object.freeze({
   MANAGE_CHECKPOINTS:         'manage_checkpoints',
   PERFORM_CYCLE_COUNTS:       'perform_cycle_counts',
   MANAGE_CYCLE_COUNTS:        'manage_cycle_counts',
+  REPORT_SHELF_GAPS:          'report_shelf_gaps',
+  MANAGE_SHELF_GAPS:          'manage_shelf_gaps',
   MANAGE_PRICE_CHANGES:       'manage_price_changes',
   MANAGE_SHELF_TAGS:          'manage_shelf_tags',
   VALIDATE_SHELF_TAGS:        'validate_shelf_tags',

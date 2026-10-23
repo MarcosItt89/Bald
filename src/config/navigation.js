@@ -12,7 +12,7 @@
 import {
   LayoutDashboard, Package, Tag, ArrowLeftRight, Truck, ClipboardCheck, ShoppingCart,
   DollarSign, Tags, CalendarClock, CheckSquare, Camera, ListTodo, Building, DoorOpen,
-  BarChart3, Building2, Layers, Users, Shield, KeyRound, LifeBuoy, History, FileSpreadsheet, Trash2, Map as MapIcon, QrCode, ClipboardList,
+  BarChart3, Building2, Layers, Users, Shield, KeyRound, LifeBuoy, History, FileSpreadsheet, Trash2, Map as MapIcon, QrCode, ClipboardList, PackageSearch,
 } from 'lucide-react'
 import { P } from './permissions'
 
@@ -31,6 +31,7 @@ export const NAV_GROUPS = [
       { icon: ArrowLeftRight, label: 'Movimientos',         path: '/inventory/movements', permission: P.VIEW_INVENTORY },
       { icon: Trash2,         label: 'Mermas',              path: '/waste',               permission: P.REGISTER_WASTE },
       { icon: ClipboardList,  label: 'Conteo cíclico',      path: '/inventory/cycle-counts', anyOf: [P.PERFORM_CYCLE_COUNTS, P.MANAGE_CYCLE_COUNTS] },
+      { icon: PackageSearch,  label: 'Huecos en anaquel',   path: '/inventory/shelf-gaps', anyOf: [P.REPORT_SHELF_GAPS, P.MANAGE_SHELF_GAPS] },
     ],
   },
   {

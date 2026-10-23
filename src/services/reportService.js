@@ -319,12 +319,20 @@ export async function getInventoryReport({ branchId, deptId, deptName, from, to,
     return q
   }
 
-  const [alerts, movements, expirations, wasteRows, cycleRows] = await Promise.all([
+  const gapsQuery = () => {
+    let q = inRange(byBranch(supabase.from('shelf_gaps')
+      .select('has_stock, reported_at, department_id, departments(name)'), branchId), 'reported_at', from, to).order('id')
+    if (deptId) q = q.eq('department_id', deptId)
+    return q
+  }
+
+  const [alerts, movements, expirations, wasteRows, cycleRows, gapRows] = await Promise.all([
     unwrap(byDept(byBranch(supabase.from('v_inventory').select('status, department_id, department_name'), branchId), deptId).in('status', LOW_STOCK)),
     unwrap(moves),
     unwrap(exps),
     fetchAll(wasteQuery),
     fetchAll(cycleQuery).catch(() => []),
+    fetchAll(gapsQuery).catch(() => []),
   ])
 
   const alertsByDept = Object.values(groupBy(alerts, (a) => a.department_id ?? ''))
@@ -362,6 +370,11 @@ export async function getInventoryReport({ branchId, deptId, deptName, from, to,
       .sort((a, b) => b.cost - a.cost).slice(0, 10),
     expirationsWeekly: weeksBetween(from, to).map((w) => ({ week: w, count: expW[w]?.length ?? 0, quantity: (expW[w] ?? []).reduce((s, x) => s + Number(x.quantity), 0) })),
     expirationsTotal: expirations.length,
+    gapsTotal: gapRows.length,
+    gapsWithStock: gapRows.filter((g) => g.has_stock).length,
+    gapsByDept: Object.values(groupBy(gapRows, (g) => g.department_id ?? ''))
+      .map((l) => ({ id: l[0].department_id, name: l[0].departments?.name ?? 'Sin departamento', total: l.length, withStock: l.filter((g) => g.has_stock).length }))
+      .sort((a, b) => b.total - a.total),
     // Exactitud = % de productos contados (conteo cíclico) sin diferencia.
     ...(() => {
       const inP = (r, a, b) => { const d = localDay(r.counted_at); return d >= a && d <= b }

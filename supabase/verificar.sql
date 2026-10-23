@@ -113,7 +113,18 @@ with checks(archivo, objeto, ok) as (values
      (select count(*) from public.permissions where code in ('perform_cycle_counts','manage_cycle_counts')) = 2),
   ('seed/0016_conteo_ciclico', 'planes de conteo de ejemplo',
      case when to_regclass('public.cycle_count_plans') is null then false
-          else (xpath('/row/c/text()', query_to_xml('select count(*) as c from public.cycle_count_plans', false, true, '')))[1]::text::int >= 1 end)
+          else (xpath('/row/c/text()', query_to_xml('select count(*) as c from public.cycle_count_plans', false, true, '')))[1]::text::int >= 1 end),
+  ('0020_huecos_anaquel', 'tabla shelf_gaps y vista v_shelf_gaps',
+     to_regclass('public.shelf_gaps') is not null and to_regclass('public.v_shelf_gaps') is not null),
+  ('0020_huecos_anaquel', 'funciones report_shelf_gap / create_order_from_shelf_gap / close_shelf_gap',
+     (select count(distinct proname) from pg_proc where proname in ('report_shelf_gap','create_order_from_shelf_gap','close_shelf_gap')) = 3),
+  ('0020_huecos_anaquel', 'cierre automático por tarea y pedido',
+     (select count(*) from pg_trigger where tgname in ('trg_shelf_gap_task_done','trg_shelf_gap_order_done')) = 2),
+  ('0020_huecos_anaquel', 'permisos de huecos en anaquel',
+     (select count(*) from public.permissions where code in ('report_shelf_gaps','manage_shelf_gaps')) = 2),
+  ('seed/0017_huecos_anaquel', 'almacén con manage_shelf_gaps',
+     exists (select 1 from public.role_permissions rp join public.roles r on r.id=rp.role_id
+             where r.code='almacen' and rp.permission_code='manage_shelf_gaps'))
 )
 select case when ok then '✅ OK' else '❌ FALTA' end as estado, objeto, archivo as ejecutar_si_falta
 from checks

@@ -45,6 +45,7 @@ export default function TasksPage() {
   const toast = useToast()
   const canManage = hasPermission(P.MANAGE_TASKS)
   const canSeeAll = canManage || hasPermission(P.VIEW_REPORTS)
+  const canShelf = hasPermission(P.MANAGE_SHELF_GAPS)
   const [params] = useSearchParams()
   const [tab, setTab] = useState(() => (params.get('tab') === 'all' && canSeeAll ? 'all' : 'mine'))
   const [showDone, setShowDone] = useState(() => params.get('done') === '1')
@@ -66,10 +67,13 @@ export default function TasksPage() {
   const { data: people = [] } = useAsync(loadPeople)
   const { data: departments = [] } = useAsync(getDepartments)
 
+  // «Surtir a piso» (huecos en anaquel) no lleva responsable: la toma cualquiera de Almacén.
+  const isMine = useCallback((t) => t.assigned_to === profile.id || (canShelf && t.source_type === 'shelf_gap' && !t.assigned_to), [profile.id, canShelf])
+
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase()
     return all.filter((t) =>
-      (tab === 'all' || t.assigned_to === profile.id)
+      (tab === 'all' || isMine(t))
       && (showDone || OPEN.includes(t.status))
       && (!deptFilter || t.department_id === deptFilter)
       && (!prioFilter || t.priority === prioFilter)
@@ -77,7 +81,7 @@ export default function TasksPage() {
       && (!assignee || t.assigned_to === assignee)
       && (!age || (OPEN.includes(t.status) && taskAgeBucket(t.created_at) === age))
       && (!q || `${t.title} ${t.description ?? ''} ${t.assigned_to_name ?? ''}`.toLowerCase().includes(q)))
-  }, [all, tab, showDone, deptFilter, prioFilter, lateOnly, assignee, age, search, profile.id])
+  }, [all, tab, showDone, deptFilter, prioFilter, lateOnly, assignee, age, search, isMine])
 
   const run = async (fn, msg) => {
     try { await fn(); toast.success(msg); reload(); return true } catch (err) { toast.error(err.message); return false }
@@ -108,7 +112,7 @@ export default function TasksPage() {
     if (ok) setForm(null)
   }
 
-  const canAct = (t) => t.assigned_to === profile.id || canManage
+  const canAct = (t) => isMine(t) || canManage
   const needsPhoto = (t) => t.requires_evidence && !Number(t.evidence_count)
 
   const actions = (r) => (
@@ -133,7 +137,7 @@ export default function TasksPage() {
       <PageHeader icon={ListTodo} title="Tareas" subtitle={`${rows.length} tareas`}
         actions={canManage && <Button size="sm" onClick={() => setForm({ ...EMPTY, department_id: profile.department_id ?? '' })}><Plus size={14} /> Nueva tarea</Button>} />
       <Tabs active={tab} onChange={setTab} tabs={[
-        { key: 'mine', label: 'Mis tareas', count: all.filter((t) => t.assigned_to === profile.id && OPEN.includes(t.status)).length },
+        { key: 'mine', label: 'Mis tareas', count: all.filter((t) => isMine(t) && OPEN.includes(t.status)).length },
         ...(canSeeAll ? [{ key: 'all', label: 'Todas' }] : []),
       ]} />
       <div className="filters">

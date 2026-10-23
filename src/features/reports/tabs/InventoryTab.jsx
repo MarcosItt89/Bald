@@ -1,4 +1,4 @@
-import { CalendarClock, ClipboardList, PackageX, Trash2, TriangleAlert } from 'lucide-react'
+import { CalendarClock, ClipboardList, PackageSearch, PackageX, Trash2, TriangleAlert } from 'lucide-react'
 import { getInventoryReport } from '../../../services/reportService'
 import { MOVEMENT_TYPES, WASTE_REASONS } from '../../../constants/status'
 import { formatCurrency, formatNumber } from '../../../utils/formatters'
@@ -21,7 +21,7 @@ export default function InventoryTab({ filters }) {
 
   return (
     <ReportState data={data} loading={loading} error={error} reload={reload}
-      empty={data && !data.lowStock && !data.byType.length && !data.expirationsTotal && !data.wasteCount && !data.countsTotal}>
+      empty={data && !data.lowStock && !data.byType.length && !data.expirationsTotal && !data.wasteCount && !data.countsTotal && !data.gapsTotal}>
       {data && (<>
         <div className="report-kpis">
           <StatCard label="Bajo mínimo" value={data.lowStock} icon={TriangleAlert} tone="orange" hint="Existencia actual" to={link('/inventory', { status: 'alerts', dept })} />
@@ -33,6 +33,8 @@ export default function InventoryTab({ filters }) {
           <StatCard label="Exactitud de inventario" value={fmtPct(data.countAccuracy.cur)} icon={ClipboardList} tone="green"
             hint={data.countAccuracy.prev != null ? <Delta d={data.countAccuracy} unit=" pts" /> : `${data.countsTotal} productos contados`}
             to={link('/inventory/cycle-counts')} />
+          <StatCard label="Hay en bodega, no en piso" value={data.gapsWithStock} icon={PackageSearch} tone="blue"
+            hint={`de ${data.gapsTotal} huecos en anaquel`} to={link('/inventory/shelf-gaps')} />
           <StatCard label="Caducidades en el periodo" value={data.expirationsTotal} icon={CalendarClock} tone="purple" to={link('/expirations', { tab: 'open' })} />
         </div>
 
@@ -73,6 +75,15 @@ export default function InventoryTab({ filters }) {
             <BarList max={100} format={fmtPct} emptyText="Sin conteos cíclicos en este periodo" items={data.accuracyByDept.map((d) => ({
               key: d.id ?? 'none', label: d.name, value: d.pct, tone: complianceTone(d.pct),
               hint: `${d.exact} de ${d.total} sin diferencia · ${formatCurrency(d.value)}`, to: link('/inventory/cycle-counts'),
+            }))} />
+          </ReportSection>
+
+          <ReportSection title="Faltantes en anaquel por departamento" subtitle={`${data.gapsTotal} huecos reportados · ${data.gapsWithStock} había en bodega`}
+            csv={{ name: `huecos-anaquel_${from}_${to}`, rows: data.gapsByDept, columns: [
+              { key: 'name', label: 'Departamento' }, { key: 'total', label: 'Huecos' }, { key: 'withStock', label: 'Había en bodega' }] }}>
+            <BarList tone="warn" emptyText="Sin huecos reportados en este periodo" items={data.gapsByDept.map((d) => ({
+              key: d.id ?? 'none', label: d.name, value: d.total,
+              hint: `${d.withStock} había en bodega · ${d.total - d.withStock} sin existencia`, to: link('/inventory/shelf-gaps'),
             }))} />
           </ReportSection>
 

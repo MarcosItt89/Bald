@@ -124,7 +124,19 @@ with checks(archivo, objeto, ok) as (values
      (select count(*) from public.permissions where code in ('report_shelf_gaps','manage_shelf_gaps')) = 2),
   ('seed/0017_huecos_anaquel', 'almacén con manage_shelf_gaps',
      exists (select 1 from public.role_permissions rp join public.roles r on r.id=rp.role_id
-             where r.code='almacen' and rp.permission_code='manage_shelf_gaps'))
+             where r.code='almacen' and rp.permission_code='manage_shelf_gaps')),
+  ('0021_comunicados', 'tablas announcements / announcement_reads y vista',
+     to_regclass('public.announcements') is not null and to_regclass('public.announcement_reads') is not null
+     and to_regclass('public.v_announcements') is not null),
+  ('0021_comunicados', 'funciones de lectura y avance',
+     (select count(distinct proname) from pg_proc where proname in ('mark_announcement_read','announcement_progress','announcement_matches','can_publish_announcement')) = 4),
+  ('0021_comunicados', 'aviso al publicar (trigger)',   exists (select 1 from pg_trigger where tgname='trg_announcement_notify')),
+  ('0021_comunicados', 'bucket privado announcements',  exists (select 1 from storage.buckets where id='announcements' and not public)),
+  ('0021_comunicados', 'permisos de comunicados',
+     (select count(*) from public.permissions where code in ('publish_announcements','manage_announcements')) = 2),
+  ('seed/0018_comunicados', 'gerente con publish_announcements',
+     exists (select 1 from public.role_permissions rp join public.roles r on r.id=rp.role_id
+             where r.code='gerente' and rp.permission_code='publish_announcements'))
 )
 select case when ok then '✅ OK' else '❌ FALTA' end as estado, objeto, archivo as ejecutar_si_falta
 from checks

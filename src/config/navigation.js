@@ -12,7 +12,7 @@
 import {
   LayoutDashboard, Package, Tag, ArrowLeftRight, Truck, ClipboardCheck, ShoppingCart,
   DollarSign, Tags, CalendarClock, CheckSquare, Camera, ListTodo, Building, DoorOpen,
-  BarChart3, Building2, Layers, Users, Shield, KeyRound, LifeBuoy, History, FileSpreadsheet, Trash2, Map as MapIcon, QrCode, ClipboardList, PackageSearch,
+  BarChart3, Building2, Layers, Users, Shield, KeyRound, LifeBuoy, History, FileSpreadsheet, Trash2, Map as MapIcon, QrCode, ClipboardList, PackageSearch, Megaphone,
 } from 'lucide-react'
 import { P } from './permissions'
 
@@ -21,6 +21,7 @@ export const NAV_GROUPS = [
     label: null,
     items: [
       { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', permission: P.VIEW_DASHBOARD },
+      { icon: Megaphone,       label: 'Comunicados', path: '/announcements' },
     ],
   },
   {

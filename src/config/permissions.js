@@ -36,6 +36,8 @@ export const P = Object.freeze({
   MANAGE_CYCLE_COUNTS:        'manage_cycle_counts',
   REPORT_SHELF_GAPS:          'report_shelf_gaps',
   MANAGE_SHELF_GAPS:          'manage_shelf_gaps',
+  PUBLISH_ANNOUNCEMENTS:      'publish_announcements',
+  MANAGE_ANNOUNCEMENTS:       'manage_announcements',
   MANAGE_PRICE_CHANGES:       'manage_price_changes',
   MANAGE_SHELF_TAGS:          'manage_shelf_tags',
   VALIDATE_SHELF_TAGS:        'validate_shelf_tags',

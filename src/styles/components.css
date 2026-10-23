@@ -537,6 +537,32 @@ a.heatmap-cell:hover { outline: 2px solid var(--text-primary); outline-offset: -
 .qr-scan { display: flex; flex-direction: column; gap: 12px; }
 .qr-required { display: inline-flex; align-items: center; gap: 3px; }
 
+/* Comunicados (0021) */
+.ann-list { display: flex; flex-direction: column; gap: 12px; }
+.ann-card { padding: 16px; display: flex; flex-direction: column; gap: 6px; }
+.ann-unread { border-left: 4px solid var(--warning); }
+.ann-focus { box-shadow: 0 0 0 3px var(--primary-light); }
+.ann-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.ann-head h3 { margin: 0; font-size: 16px; color: var(--text-primary); }
+.ann-head .badge { display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0; }
+.ann-body { margin: 4px 0; white-space: pre-wrap; color: var(--text-secondary); font-size: 14px; line-height: 1.5; }
+.ann-attach { align-self: flex-start; }
+.ann-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 4px; }
+.ann-progress { display: flex; flex-direction: column; gap: 2px; min-width: 180px; flex: 1; }
+.ann-banner { display: flex; align-items: center; gap: 10px; text-decoration: none; margin: 0 0 16px; }
+.ann-banner > span { display: flex; flex-direction: column; min-width: 0; }
+.ann-banner-title { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ann-branches { display: flex; flex-direction: column; gap: 14px; }
+.ann-branch { display: flex; flex-direction: column; gap: 6px; }
+.ann-branch-head { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.ann-people { list-style: none; margin: 0; padding: 0; }
+.ann-people li { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.ann-people li:last-child { border-bottom: none; }
+.ann-person-read { opacity: .6; }
+@media (max-width: 768px) {
+  .ann-people li { flex-direction: column; gap: 0; }
+}
+
 /* Huecos en anaquel (0020) */
 .sg-report { display: grid; grid-template-columns: auto 1fr 1fr; gap: 12px; align-items: end; }
 .sg-result { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-top: 12px; }

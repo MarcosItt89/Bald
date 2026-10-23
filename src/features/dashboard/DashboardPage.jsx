@@ -10,7 +10,7 @@ import { useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ListTodo, CheckSquare, AlertTriangle, ClipboardCheck, Package, ShoppingCart, Tags,
-  CalendarClock, Truck, DoorOpen, Camera, LifeBuoy,
+  CalendarClock, Truck, DoorOpen, Camera, LifeBuoy, Megaphone,
 } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useAsync } from '../../hooks/useAsync'
@@ -18,6 +18,7 @@ import { P } from '../../config/permissions'
 import {
   getDashboardSummary, getTodayRuns, getMyOpenTasks, getCriticalStock,
 } from '../../services/dashboardService'
+import { getUnreadAnnouncements } from '../../services/announcementService'
 import { CHECKLIST_RUN_STATUS, INVENTORY_STATUS, PRIORITY } from '../../constants/status'
 import { formatDate, formatNumber, formatTime, todayISO } from '../../utils/formatters'
 import PageHeader from '../../components/ui/PageHeader'
@@ -72,6 +73,9 @@ export default function DashboardPage() {
   )
   const stock = useAsync(loadStock)
 
+  const announcements = useAsync(getUnreadAnnouncements)
+  const unread = announcements.data ?? []
+
   const longDate = new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
   const visibleCards = CARDS.filter((c) => summary.data && summary.data[c.key] != null)
 
@@ -81,6 +85,14 @@ export default function DashboardPage() {
         title={`Hola, ${profile.full_name.split(' ')[0]}`}
         subtitle={`${longDate} · ${profile.role_name}${profile.branch_name ? ` · ${profile.branch_name}` : ''}`}
       />
+
+      {unread.length > 0 && (
+        <Link to={unread.length === 1 ? `/announcements?id=${unread[0].id}` : '/announcements'} className="hint-box hint-warning ann-banner">
+          <Megaphone size={18} />
+          <span><strong>{unread.length === 1 ? 'Tienes un comunicado por confirmar' : `Tienes ${unread.length} comunicados por confirmar`}</strong>
+            <span className="ann-banner-title">«{unread[0].title}»{unread.length > 1 ? ' y otros' : ''}</span></span>
+        </Link>
+      )}
 
       {summary.error && <ErrorState error={summary.error} onRetry={summary.reload} />}
 

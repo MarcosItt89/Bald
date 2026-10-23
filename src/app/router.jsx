@@ -20,6 +20,7 @@ const page = (loader) => lazy(loader)
 const LoginPage            = page(() => import('../features/auth/LoginPage'))
 const ResetPasswordPage    = page(() => import('../features/auth/ResetPasswordPage'))
 const DashboardPage        = page(() => import('../features/dashboard/DashboardPage'))
+const AnnouncementsPage    = page(() => import('../features/announcements/AnnouncementsPage'))
 const InventoryPage        = page(() => import('../features/inventory/InventoryPage'))
 const PriceCheckPage       = page(() => import('../features/inventory/PriceCheckPage'))
 const StockMovementsPage   = page(() => import('../features/inventory/StockMovementsPage'))
@@ -56,6 +57,7 @@ const NotFoundPage         = page(() => import('../features/errors/NotFoundPage'
 /** [ruta, componente, regla de acceso] — la regla usa { permission } o { anyOf }. */
 const PROTECTED = [
   ['dashboard',            DashboardPage,          { permission: P.VIEW_DASHBOARD }],
+  ['announcements',        AnnouncementsPage,      {}],
   ['inventory',            InventoryPage,          { permission: P.VIEW_INVENTORY }],
   ['inventory/prices',     PriceCheckPage,         { permission: P.VIEW_PRICES }],
   ['inventory/movements',  StockMovementsPage,     { permission: P.VIEW_INVENTORY }],

@@ -1,0 +1,3 @@
+# Los .sql se guardan con LF: los parches de funciones (pg_get_functiondef +
+# replace) buscan saltos de línea LF y fallan si el archivo trae CRLF.
+*.sql text eol=lf

@@ -253,6 +253,7 @@ do $$
 declare v_src text;
 begin
   select pg_get_functiondef('public.run_daily_maintenance(uuid)'::regprocedure) into v_src;
+  v_src := replace(v_src, chr(13), '');  -- por si se instaló desde un archivo con CRLF
   if position('generate_cycle_counts' in v_src) = 0 then
     v_src := replace(v_src,
       '  perform public.set_bypass(v_prev);' || chr(10) || chr(10) || '  return jsonb_build_object(',

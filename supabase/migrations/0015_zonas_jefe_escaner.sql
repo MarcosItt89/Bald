@@ -123,6 +123,7 @@ do $$
 declare v_src text;
 begin
   select pg_get_functiondef('public.tg_employee_guard()'::regprocedure) into v_src;
+  v_src := replace(v_src, chr(13), '');  -- por si se instaló desde un archivo con CRLF
   if position('v_target_scope = ''zone''' in v_src) = 0 then
     v_src := replace(v_src,
       'if v_target_scope = ''company'' and public.auth_role_scope() <> ''company'' then',

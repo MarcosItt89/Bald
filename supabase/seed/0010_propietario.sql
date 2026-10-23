@@ -1,5 +1,9 @@
 -- =============================================================================
--- OPERALIA · 0010 · NOTIFICACIONES DE PRUEBA + VÍNCULO DE CUENTA EXISTENTE
+-- OPERALIA · SEMILLA 0010 · CUENTA DEL PROPIETARIO
+-- -----------------------------------------------------------------------------
+-- Re-ejecutable. Pre-registra la cuenta del dueño y define al propietario.
+-- Las notificaciones de prueba están en
+-- demo/0010_notificaciones_prueba.sql.
 -- =============================================================================
 
 -- ─── 1. Vincular la cuenta ya creada en Supabase Auth ───────────────────────
@@ -26,14 +30,19 @@ update public.employees e
    and lower(e.username) = 'marcos.yeran.guerra'
    and e.user_id is null;
 
--- ─── 2. Dos notificaciones de prueba por departamento ───────────────────────
-insert into public.notifications (company_id, department_id, type, title, body, link)
-select d.company_id, d.id, v.type, v.title || ' · ' || d.name, v.body, v.link
-from public.departments d
-cross join (values
-  ('info',      'Bienvenidos a Operalia', 'Desde hoy los checklists y tareas del área se registran aquí.', '/dashboard'),
-  ('checklist', 'Recordatorio de checklist', 'Revisa los checklists pendientes de tu departamento antes de la hora límite.', '/checklists')
-) as v(type, title, body, link)
-where d.company_id = 'c0000000-0000-4000-8000-000000000001'
-  and not exists (select 1 from public.notifications n
-                  where n.department_id = d.id and n.employee_id is null and n.title = v.title || ' · ' || d.name);
+-- ─── 2. Propietario de la empresa ───────────────────────────────────────────
+-- La migración 0012 marca a gatopelon solo si ya existía. Si aún no hay
+-- propietario: gatopelon cuando está instalada la demo; si no, esta cuenta.
+do $$
+declare v_prev text;
+begin
+  if not exists (select 1 from public.employees where company_id = 'c0000000-0000-4000-8000-000000000001' and is_owner) then
+    v_prev := public.set_bypass('on');
+    update public.employees set is_owner = true
+     where id = (select id from public.employees
+                  where company_id = 'c0000000-0000-4000-8000-000000000001'
+                    and lower(username) in ('gatopelon', 'marcos.yeran.guerra')
+                  order by lower(username) = 'gatopelon' desc limit 1);
+    perform public.set_bypass(v_prev);
+  end if;
+end $$;

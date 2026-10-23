@@ -1,6 +1,6 @@
 -- =============================================================================
--- OPERALIA · pendiente.sql — INSTALACIÓN COMPLETA (pegar y ejecutar en SQL Editor)
--- Generado por supabase/build-pendiente.mjs a partir de migrations/* y seed/*.
+-- OPERALIA · pendiente.sql — INSTALACIÓN COMPLETA CON DATOS DEMO (pegar y ejecutar en SQL Editor)
+-- Generado por supabase/build-pendiente.mjs a partir de migrations/*, seed/* y demo/*.
 -- No lo edites a mano: cambia los archivos fuente y vuelve a generarlo.
 -- Es re-ejecutable: no duplica datos ni borra lo ya instalado.
 -- =============================================================================
@@ -3804,6 +3804,7 @@ do $$
 declare v_src text;
 begin
   select pg_get_functiondef('public.tg_employee_guard()'::regprocedure) into v_src;
+  v_src := replace(v_src, chr(13), '');  -- por si se instaló desde un archivo con CRLF
   if position('v_target_scope = ''zone''' in v_src) = 0 then
     v_src := replace(v_src,
       'if v_target_scope = ''company'' and public.auth_role_scope() <> ''company'' then',
@@ -4219,6 +4220,7 @@ do $$
 declare v_src text;
 begin
   select pg_get_functiondef('public.run_daily_maintenance(uuid)'::regprocedure) into v_src;
+  v_src := replace(v_src, chr(13), '');  -- por si se instaló desde un archivo con CRLF
   if position('send_checklist_reminders' in v_src) = 0 then
     v_src := replace(v_src,
       '  perform public.set_bypass(v_prev);' || chr(10) || chr(10) || '  return jsonb_build_object(',
@@ -4646,6 +4648,7 @@ do $$
 declare v_src text;
 begin
   select pg_get_functiondef('public.run_daily_maintenance(uuid)'::regprocedure) into v_src;
+  v_src := replace(v_src, chr(13), '');  -- por si se instaló desde un archivo con CRLF
   if position('generate_cycle_counts' in v_src) = 0 then
     v_src := replace(v_src,
       '  perform public.set_bypass(v_prev);' || chr(10) || chr(10) || '  return jsonb_build_object(',
@@ -5334,7 +5337,7 @@ join public.roles r on r.code = m.role_code and r.company_id = 'c0000000-0000-40
 on conflict do nothing;
 
 
--- >>>>>>>>>>>>>>>> seed/0009_usuarios_y_demo.sql <<<<<<<<<<<<<<<<
+-- >>>>>>>>>>>>>>>> demo/0009_usuarios_y_demo.sql <<<<<<<<<<<<<<<<
 -- =============================================================================
 -- OPERALIA · 0009 · USUARIOS DE PRUEBA Y DATOS DEMO
 -- -----------------------------------------------------------------------------
@@ -5653,9 +5656,13 @@ end $$;
 select public.run_daily_maintenance('c0000000-0000-4000-8000-000000000001');
 
 
--- >>>>>>>>>>>>>>>> seed/0010_notificaciones_y_marcos.sql <<<<<<<<<<<<<<<<
+-- >>>>>>>>>>>>>>>> seed/0010_propietario.sql <<<<<<<<<<<<<<<<
 -- =============================================================================
--- OPERALIA · 0010 · NOTIFICACIONES DE PRUEBA + VÍNCULO DE CUENTA EXISTENTE
+-- OPERALIA · SEMILLA 0010 · CUENTA DEL PROPIETARIO
+-- -----------------------------------------------------------------------------
+-- Re-ejecutable. Pre-registra la cuenta del dueño y define al propietario.
+-- Las notificaciones de prueba están en
+-- demo/0010_notificaciones_prueba.sql.
 -- =============================================================================
 
 -- ─── 1. Vincular la cuenta ya creada en Supabase Auth ───────────────────────
@@ -5681,6 +5688,31 @@ update public.employees e
  where lower(u.email) = 'marcos.yeran.guerra@gmail.com'
    and lower(e.username) = 'marcos.yeran.guerra'
    and e.user_id is null;
+
+-- ─── 2. Propietario de la empresa ───────────────────────────────────────────
+-- La migración 0012 marca a gatopelon solo si ya existía. Si aún no hay
+-- propietario: gatopelon cuando está instalada la demo; si no, esta cuenta.
+do $$
+declare v_prev text;
+begin
+  if not exists (select 1 from public.employees where company_id = 'c0000000-0000-4000-8000-000000000001' and is_owner) then
+    v_prev := public.set_bypass('on');
+    update public.employees set is_owner = true
+     where id = (select id from public.employees
+                  where company_id = 'c0000000-0000-4000-8000-000000000001'
+                    and lower(username) in ('gatopelon', 'marcos.yeran.guerra')
+                  order by lower(username) = 'gatopelon' desc limit 1);
+    perform public.set_bypass(v_prev);
+  end if;
+end $$;
+
+
+-- >>>>>>>>>>>>>>>> demo/0010_notificaciones_prueba.sql <<<<<<<<<<<<<<<<
+-- =============================================================================
+-- OPERALIA · DEMO 0010 · NOTIFICACIONES DE PRUEBA
+-- -----------------------------------------------------------------------------
+-- Dos avisos por departamento para ver la campana con datos. Re-ejecutable.
+-- =============================================================================
 
 -- ─── 2. Dos notificaciones de prueba por departamento ───────────────────────
 insert into public.notifications (company_id, department_id, type, title, body, link)
@@ -5859,8 +5891,7 @@ on conflict do nothing;
 --   * Sucursales demo: 001 Centro → zona Centro, 002 Norte → Norte, 003 Sur → Sur.
 --   * Rol jefe_escaner (alcance 'zone'): permisos de escáner + validar cenefas,
 --     reportes y asignar tareas (solo al departamento Escáner de sus tiendas).
---   * Usuarios demo: jefe.escaner (zonas Centro y Norte) y escaner.norte.
---     jefe.escaner NO ve la Sucursal Sur (zona Sur): ver pruebas en verificar.sql.
+--   * Los usuarios demo de zona están en demo/0013_usuarios_zona.sql.
 -- =============================================================================
 
 insert into public.zones (company_id, code, name)
@@ -5889,6 +5920,17 @@ cross join (values
 ) as p(code)
 where r.code = 'jefe_escaner'
 on conflict do nothing;
+
+
+
+-- >>>>>>>>>>>>>>>> demo/0013_usuarios_zona.sql <<<<<<<<<<<<<<<<
+-- =============================================================================
+-- OPERALIA · DEMO 0013 · USUARIOS DE ZONA
+-- -----------------------------------------------------------------------------
+-- Requiere seed/0013 (rol jefe_escaner y zonas). Re-ejecutable.
+--   * jefe.escaner (zonas Centro y Norte) y escaner.norte, contraseña prueba123.
+--     jefe.escaner NO ve la Sucursal Sur (zona Sur): ver pruebas en verificar.sql.
+-- =============================================================================
 
 -- Función temporal (copia de la de seed/0009) para crear empleado + cuenta.
 create or replace function public._seed_user(
@@ -6019,13 +6061,12 @@ update public.checklist_templates t
 
 -- >>>>>>>>>>>>>>>> seed/0016_conteo_ciclico.sql <<<<<<<<<<<<<<<<
 -- =============================================================================
--- OPERALIA · SEMILLA 0016 · CONTEO CÍCLICO DE EJEMPLO
+-- OPERALIA · SEMILLA 0016 · PERMISOS DE CONTEO CÍCLICO
 -- -----------------------------------------------------------------------------
 -- Requiere la migración 0019. Re-ejecutable.
 --   * perform_cycle_counts: admin, gerente, supervisor, almacén, abarrotes y
 --     caducidades. manage_cycle_counts: admin y gerente.
---   * Sucursal Centro: «Conteo diario de Abarrotes» (8 productos al día).
---   * Sucursal Norte: «Conteo general» de lunes a viernes (5 productos).
+--   * Los planes de ejemplo están en demo/0016_planes_conteo.sql.
 -- =============================================================================
 
 insert into public.role_permissions (role_id, permission_code)
@@ -6036,6 +6077,17 @@ join (values
   ('manage_cycle_counts',  array['admin','gerente'])
 ) as p(code, roles) on r.code = any(p.roles)
 on conflict do nothing;
+
+
+
+-- >>>>>>>>>>>>>>>> demo/0016_planes_conteo.sql <<<<<<<<<<<<<<<<
+-- =============================================================================
+-- OPERALIA · DEMO 0016 · PLANES DE CONTEO CÍCLICO
+-- -----------------------------------------------------------------------------
+-- Requiere la migración 0019. Re-ejecutable.
+--   * Sucursal Centro: «Conteo diario de Abarrotes» (8 productos al día).
+--   * Sucursal Norte: «Conteo general» de lunes a viernes (5 productos).
+-- =============================================================================
 
 insert into public.cycle_count_plans (company_id, branch_id, department_id, name, frequency, items_per_count)
 select b.company_id, b.id, d.id, v.name, v.freq, v.n
@@ -6052,14 +6104,13 @@ select public.generate_cycle_counts(id, public.company_today(id)) from public.co
 
 -- >>>>>>>>>>>>>>>> seed/0017_huecos_anaquel.sql <<<<<<<<<<<<<<<<
 -- =============================================================================
--- OPERALIA · SEMILLA 0017 · HUECOS EN ANAQUEL DE EJEMPLO
+-- OPERALIA · SEMILLA 0017 · PERMISOS DE HUECOS EN ANAQUEL
 -- -----------------------------------------------------------------------------
 -- Requiere la migración 0020. Re-ejecutable.
 --   * report_shelf_gaps: admin, gerente, supervisor, jefe de cajas, cajas,
 --     abarrotes, almacén, caducidades y escáner.
 --   * manage_shelf_gaps: admin, gerente, supervisor y almacén.
---   * Historial: 6 huecos ya resueltos en Sucursal Centro (últimos 10 días)
---     para que Estadísticas → Inventario muestre datos.
+--   * El historial de ejemplo está en demo/0017_huecos_historial.sql.
 -- =============================================================================
 
 insert into public.role_permissions (role_id, permission_code)
@@ -6070,6 +6121,17 @@ join (values
   ('manage_shelf_gaps', array['admin','gerente','supervisor','almacen'])
 ) as p(code, roles) on r.code = any(p.roles)
 on conflict do nothing;
+
+
+
+-- >>>>>>>>>>>>>>>> demo/0017_huecos_historial.sql <<<<<<<<<<<<<<<<
+-- =============================================================================
+-- OPERALIA · DEMO 0017 · HISTORIAL DE HUECOS EN ANAQUEL
+-- -----------------------------------------------------------------------------
+-- Requiere la migración 0020 y el inventario demo. Re-ejecutable.
+--   * 6 huecos ya resueltos en Sucursal Centro (últimos días) para que
+--     Estadísticas → Inventario muestre datos.
+-- =============================================================================
 
 insert into public.shelf_gaps (company_id, branch_id, department_id, product_id, system_stock, has_stock,
                                status, reported_at, last_reported_at, resolved_at)
@@ -6090,13 +6152,12 @@ where x.n <= 6
 
 -- >>>>>>>>>>>>>>>> seed/0018_comunicados.sql <<<<<<<<<<<<<<<<
 -- =============================================================================
--- OPERALIA · SEMILLA 0018 · COMUNICADOS DE EJEMPLO
+-- OPERALIA · SEMILLA 0018 · PERMISOS DE COMUNICADOS
 -- -----------------------------------------------------------------------------
 -- Requiere la migración 0021. Re-ejecutable.
 --   * publish_announcements: admin, gerente, supervisor y jefe de escáner.
 --     manage_announcements: admin.
---   * Dos comunicados: uno a toda la empresa (admin) y uno a la Sucursal
---     Centro (gerente.centro). Al insertarlos se avisa a su alcance.
+--   * Los comunicados de ejemplo están en demo/0018_comunicados_ejemplo.sql.
 -- =============================================================================
 
 insert into public.role_permissions (role_id, permission_code)
@@ -6107,6 +6168,17 @@ join (values
   ('manage_announcements',  array['admin'])
 ) as p(code, roles) on r.code = any(p.roles)
 on conflict do nothing;
+
+
+
+-- >>>>>>>>>>>>>>>> demo/0018_comunicados_ejemplo.sql <<<<<<<<<<<<<<<<
+-- =============================================================================
+-- OPERALIA · DEMO 0018 · COMUNICADOS DE EJEMPLO
+-- -----------------------------------------------------------------------------
+-- Requiere la migración 0021 y los usuarios demo. Re-ejecutable.
+--   * Uno a toda la empresa (gatopelon) y uno a la Sucursal Centro
+--     (gerente.centro). Al insertarlos se avisa a su alcance.
+-- =============================================================================
 
 insert into public.announcements (company_id, title, body, scope, branch_id, valid_until, published_by)
 select e.company_id, v.title, v.body, v.scope, b.id, public.company_today(e.company_id) + v.days, e.id

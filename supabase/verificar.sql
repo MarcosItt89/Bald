@@ -1,7 +1,8 @@
 -- =============================================================================
 -- OPERALIA · VERIFICAR INSTALACIÓN (solo lectura, no modifica nada)
 -- Pégalo en el SQL Editor. Cada fila dice si el objeto existe y, si falta,
--- qué archivo ejecutar.
+-- qué archivo ejecutar. Con instalacion-limpia.sql (sin demo) las filas
+-- «demo/…» salen ❌ y es lo esperado.
 -- =============================================================================
 with checks(archivo, objeto, ok) as (values
   ('0001-0007 (pendiente.sql)', 'tabla employees con username',
@@ -23,10 +24,10 @@ with checks(archivo, objeto, ok) as (values
      exists (select 1 from information_schema.columns where table_schema='public' and table_name='support_tickets' and column_name='due_at')),
   ('0011_soporte_temas_sla', 'trigger trg_ticket_sla',           exists (select 1 from pg_trigger where tgname='trg_ticket_sla')),
   ('0011_soporte_temas_sla', 'función can_view_ticket',          exists (select 1 from pg_proc where proname='can_view_ticket')),
-  ('0012_propietario_contrasenas_checklists', 'gatopelon es propietario',
+  ('0012 + seed/0010_propietario', 'la empresa tiene propietario',
      exists (select 1 from information_schema.columns where table_schema='public' and table_name='employees' and column_name='is_owner')
      and (xpath('/row/c/text()', query_to_xml(
-       'select count(*) as c from public.employees where username = ''gatopelon'' and ' ||
+       'select count(*) as c from public.employees where ' ||
        case when exists (select 1 from information_schema.columns where table_schema='public' and table_name='employees' and column_name='is_owner')
             then 'is_owner' else 'false' end, false, true, '')))[1]::text::int = 1),
   ('0012_propietario_contrasenas_checklists', 'función admin_set_password',      exists (select 1 from pg_proc where proname='admin_set_password')),
@@ -40,9 +41,9 @@ with checks(archivo, objeto, ok) as (values
             else 'select count(*) as c from cron.job where jobname = ''operalia-mantenimiento''' end, false, true, '')))[1]::text::int = 1),
   ('seed/0008_catalogos', 'empresa Gato Pelón',
      exists (select 1 from public.companies where id='c0000000-0000-4000-8000-000000000001')),
-  ('seed/0009_usuarios_y_demo', 'usuario gatopelon en Auth',
+  ('demo/0009_usuarios_y_demo', 'usuario gatopelon en Auth',
      exists (select 1 from auth.users where email='gatopelon@operalia.local')),
-  ('seed/0009_usuarios_y_demo', 'usuario cajero en Auth',
+  ('demo/0009_usuarios_y_demo', 'usuario cajero en Auth',
      exists (select 1 from auth.users where email='cajero@operalia.local')),
   ('0011_soporte_temas_sla', '10 temas de soporte sembrados',
      case when to_regclass('public.support_topics') is null then false
@@ -66,7 +67,7 @@ with checks(archivo, objeto, ok) as (values
   ('seed/0012_temperaturas_y_mermas', 'gerente con register_waste',
      exists (select 1 from public.role_permissions rp join public.roles r on r.id=rp.role_id
              where r.code='gerente' and rp.permission_code='register_waste')),
-  ('seed/0012_temperaturas_y_mermas', 'lecturas de temperatura con rango',
+  ('demo/0009 + seed/0012_temperaturas_y_mermas', 'lecturas de temperatura con rango',
      case when not exists (select 1 from information_schema.columns where table_schema='public' and table_name='checklist_questions' and column_name='equipment_name') then false
           else (xpath('/row/c/text()', query_to_xml('select count(*) as c from public.checklist_questions where equipment_name is not null and is_active', false, true, '')))[1]::text::int >= 7 end),
   ('0015_zonas_jefe_escaner', 'tabla zones',                     to_regclass('public.zones') is not null),
@@ -75,7 +76,7 @@ with checks(archivo, objeto, ok) as (values
   ('0015_zonas_jefe_escaner', 'columna price_changes.zone_id',   exists (select 1 from information_schema.columns where table_schema='public' and table_name='price_changes' and column_name='zone_id')),
   ('0015_zonas_jefe_escaner', 'función auth_zone_ids',           exists (select 1 from pg_proc where proname='auth_zone_ids')),
   ('seed/0013_zonas_jefe_escaner', 'rol jefe_escaner (alcance zone)', exists (select 1 from public.roles where code='jefe_escaner' and scope='zone')),
-  ('seed/0013_zonas_jefe_escaner', 'usuario jefe.escaner con zonas',
+  ('demo/0013_usuarios_zona', 'usuario jefe.escaner con zonas',
      case when to_regclass('public.employee_zones') is null then false
           else (xpath('/row/c/text()', query_to_xml('select count(*) as c from public.employee_zones ez join public.employees e on e.id = ez.employee_id where e.username = ''jefe.escaner''', false, true, '')))[1]::text::int >= 1 end),
   ('0016_checklists_repetidos', 'columna checklist_templates.repeat_every_minutes', exists (select 1 from information_schema.columns where table_schema='public' and table_name='checklist_templates' and column_name='repeat_every_minutes')),
@@ -111,7 +112,7 @@ with checks(archivo, objeto, ok) as (values
      exists (select 1 from pg_proc where proname='run_daily_maintenance' and prosrc like '%generate_cycle_counts%')),
   ('0019_conteo_ciclico', 'permisos de conteo cíclico',
      (select count(*) from public.permissions where code in ('perform_cycle_counts','manage_cycle_counts')) = 2),
-  ('seed/0016_conteo_ciclico', 'planes de conteo de ejemplo',
+  ('demo/0016_planes_conteo', 'planes de conteo de ejemplo',
      case when to_regclass('public.cycle_count_plans') is null then false
           else (xpath('/row/c/text()', query_to_xml('select count(*) as c from public.cycle_count_plans', false, true, '')))[1]::text::int >= 1 end),
   ('0020_huecos_anaquel', 'tabla shelf_gaps y vista v_shelf_gaps',

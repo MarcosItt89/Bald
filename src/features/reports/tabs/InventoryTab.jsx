@@ -1,4 +1,4 @@
-import { CalendarClock, PackageX, Trash2, TriangleAlert } from 'lucide-react'
+import { CalendarClock, ClipboardList, PackageX, Trash2, TriangleAlert } from 'lucide-react'
 import { getInventoryReport } from '../../../services/reportService'
 import { MOVEMENT_TYPES, WASTE_REASONS } from '../../../constants/status'
 import { formatCurrency, formatNumber } from '../../../utils/formatters'
@@ -6,7 +6,7 @@ import StatCard from '../../../components/ui/StatCard'
 import BarList from '../../../components/charts/BarList'
 import LineChart from '../../../components/charts/LineChart'
 import Donut from '../../../components/charts/Donut'
-import { shortDate, useReport, useReportLink } from '../reportFilters'
+import { complianceTone, fmtPct, shortDate, useReport, useReportLink } from '../reportFilters'
 import { Delta, ReportSection, ReportState } from '../reportUi'
 
 // El color sigue al motivo (orden fijo), no a su posición en el ranking.
@@ -21,7 +21,7 @@ export default function InventoryTab({ filters }) {
 
   return (
     <ReportState data={data} loading={loading} error={error} reload={reload}
-      empty={data && !data.lowStock && !data.byType.length && !data.expirationsTotal && !data.wasteCount}>
+      empty={data && !data.lowStock && !data.byType.length && !data.expirationsTotal && !data.wasteCount && !data.countsTotal}>
       {data && (<>
         <div className="report-kpis">
           <StatCard label="Bajo mínimo" value={data.lowStock} icon={TriangleAlert} tone="orange" hint="Existencia actual" to={link('/inventory', { status: 'alerts', dept })} />
@@ -30,6 +30,9 @@ export default function InventoryTab({ filters }) {
             hint={<Delta d={data.wasteQty} better="down" />} to={waste} />
           <StatCard label="Merma (a costo)" value={formatCurrency(data.wasteCost.cur)} icon={Trash2} tone="red"
             hint={data.wasteCost.prev != null ? <Delta d={data.wasteCost} better="down" format={money} /> : `${data.wasteCount} registros`} to={waste} />
+          <StatCard label="Exactitud de inventario" value={fmtPct(data.countAccuracy.cur)} icon={ClipboardList} tone="green"
+            hint={data.countAccuracy.prev != null ? <Delta d={data.countAccuracy} unit=" pts" /> : `${data.countsTotal} productos contados`}
+            to={link('/inventory/cycle-counts')} />
           <StatCard label="Caducidades en el periodo" value={data.expirationsTotal} icon={CalendarClock} tone="purple" to={link('/expirations', { tab: 'open' })} />
         </div>
 
@@ -60,6 +63,16 @@ export default function InventoryTab({ filters }) {
             <BarList tone="bad" format={money} emptyText="Sin mermas en este periodo" items={data.wasteTopProducts.map((p) => ({
               key: p.id, label: p.name, value: p.cost, hint: `${p.sku} · ${formatNumber(p.qty, 2)} ${p.unit ?? ''}`,
               to: link('/inventory/movements', { type: 'waste', from, to }),
+            }))} />
+          </ReportSection>
+
+          <ReportSection title="Exactitud por departamento" subtitle={`Conteo cíclico · % de productos contados sin diferencia · diferencia neta ${formatCurrency(data.countDiffValue)}`}
+            csv={{ name: `exactitud-inventario_${from}_${to}`, rows: data.accuracyByDept, columns: [
+              { key: 'name', label: 'Departamento' }, { key: 'total', label: 'Contados' }, { key: 'exact', label: 'Sin diferencia' },
+              { key: 'pct', label: '% exactitud' }, { key: 'value', label: 'Diferencia en pesos' }] }}>
+            <BarList max={100} format={fmtPct} emptyText="Sin conteos cíclicos en este periodo" items={data.accuracyByDept.map((d) => ({
+              key: d.id ?? 'none', label: d.name, value: d.pct, tone: complianceTone(d.pct),
+              hint: `${d.exact} de ${d.total} sin diferencia · ${formatCurrency(d.value)}`, to: link('/inventory/cycle-counts'),
             }))} />
           </ReportSection>
 

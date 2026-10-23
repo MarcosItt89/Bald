@@ -24,6 +24,7 @@ const InventoryPage        = page(() => import('../features/inventory/InventoryP
 const PriceCheckPage       = page(() => import('../features/inventory/PriceCheckPage'))
 const StockMovementsPage   = page(() => import('../features/inventory/StockMovementsPage'))
 const WastePage            = page(() => import('../features/waste/WastePage'))
+const CycleCountsPage      = page(() => import('../features/cycleCounts/CycleCountsPage'))
 const ReceivingPage        = page(() => import('../features/receiving/ReceivingPage'))
 const ReceivingDetailPage  = page(() => import('../features/receiving/ReceivingDetailPage'))
 const ReceivingSummaryPage = page(() => import('../features/receiving/ReceivingSummaryPage'))
@@ -58,6 +59,7 @@ const PROTECTED = [
   ['inventory/prices',     PriceCheckPage,         { permission: P.VIEW_PRICES }],
   ['inventory/movements',  StockMovementsPage,     { permission: P.VIEW_INVENTORY }],
   ['waste',                WastePage,              { permission: P.REGISTER_WASTE }],
+  ['inventory/cycle-counts', CycleCountsPage,      { anyOf: [P.PERFORM_CYCLE_COUNTS, P.MANAGE_CYCLE_COUNTS] }],
   ['receiving',            ReceivingPage,          { permission: P.RECEIVE_PRODUCTS }],
   ['receiving/summary',    ReceivingSummaryPage,   { anyOf: [P.RECEIVE_PRODUCTS, P.VIEW_REPORTS] }],
   ['receiving/:id',        ReceivingDetailPage,    { anyOf: [P.RECEIVE_PRODUCTS, P.VIEW_REPORTS] }],

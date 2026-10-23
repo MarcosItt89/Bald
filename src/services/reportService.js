@@ -309,11 +309,22 @@ export async function getInventoryReport({ branchId, deptId, deptName, from, to,
     return q
   }
 
-  const [alerts, movements, expirations, wasteRows] = await Promise.all([
+  const cycleQuery = () => {
+    let q = supabase.from('cycle_count_items')
+      .select('difference, difference_value, counted_at, products!inner(department_id, departments(name)), cycle_count_tasks!inner(branch_id)')
+      .not('counted_at', 'is', null)
+      .gte('counted_at', dayStart(wasteStart)).lte('counted_at', dayEnd(to)).order('id')
+    q = byBranch(q, branchId, 'cycle_count_tasks.branch_id')
+    if (deptId) q = q.eq('products.department_id', deptId)
+    return q
+  }
+
+  const [alerts, movements, expirations, wasteRows, cycleRows] = await Promise.all([
     unwrap(byDept(byBranch(supabase.from('v_inventory').select('status, department_id, department_name'), branchId), deptId).in('status', LOW_STOCK)),
     unwrap(moves),
     unwrap(exps),
     fetchAll(wasteQuery),
+    fetchAll(cycleQuery).catch(() => []),
   ])
 
   const alertsByDept = Object.values(groupBy(alerts, (a) => a.department_id ?? ''))
@@ -351,6 +362,21 @@ export async function getInventoryReport({ branchId, deptId, deptName, from, to,
       .sort((a, b) => b.cost - a.cost).slice(0, 10),
     expirationsWeekly: weeksBetween(from, to).map((w) => ({ week: w, count: expW[w]?.length ?? 0, quantity: (expW[w] ?? []).reduce((s, x) => s + Number(x.quantity), 0) })),
     expirationsTotal: expirations.length,
+    // Exactitud = % de productos contados (conteo cíclico) sin diferencia.
+    ...(() => {
+      const inP = (r, a, b) => { const d = localDay(r.counted_at); return d >= a && d <= b }
+      const cur = cycleRows.filter((r) => inP(r, from, to))
+      const prev = compare ? cycleRows.filter((r) => inP(r, prevFrom, prevTo)) : []
+      const exact = (l) => pct(l.filter((r) => Number(r.difference) === 0).length, l.length)
+      return {
+        countsTotal: cur.length,
+        countAccuracy: delta(exact(cur), compare ? exact(prev) : null),
+        countDiffValue: Math.round(cur.reduce((s, r) => s + Number(r.difference_value ?? 0), 0) * 100) / 100,
+        accuracyByDept: Object.values(groupBy(cur, (r) => r.products?.department_id ?? ''))
+          .map((l) => ({ id: l[0].products?.department_id ?? null, name: l[0].products?.departments?.name ?? 'Sin departamento', total: l.length, exact: l.filter((r) => Number(r.difference) === 0).length, pct: exact(l), value: Math.round(l.reduce((s, r) => s + Number(r.difference_value ?? 0), 0) * 100) / 100 }))
+          .sort((a, b) => (a.pct ?? 0) - (b.pct ?? 0)),
+      }
+    })(),
   }
 }
 

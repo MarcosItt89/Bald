@@ -103,7 +103,17 @@ with checks(archivo, objeto, ok) as (values
   ('0018_puntos_qr', 'permiso manage_checkpoints',        exists (select 1 from public.permissions where code='manage_checkpoints')),
   ('seed/0015_puntos_qr', 'gerente con manage_checkpoints',
      exists (select 1 from public.role_permissions rp join public.roles r on r.id=rp.role_id
-             where r.code='gerente' and rp.permission_code='manage_checkpoints'))
+             where r.code='gerente' and rp.permission_code='manage_checkpoints')),
+  ('0019_conteo_ciclico', 'tablas de conteo cíclico',
+     to_regclass('public.cycle_count_plans') is not null and to_regclass('public.cycle_count_tasks') is not null and to_regclass('public.cycle_count_items') is not null),
+  ('0019_conteo_ciclico', 'función record_cycle_count',     exists (select 1 from pg_proc where proname='record_cycle_count')),
+  ('0019_conteo_ciclico', 'el mantenimiento diario genera conteos',
+     exists (select 1 from pg_proc where proname='run_daily_maintenance' and prosrc like '%generate_cycle_counts%')),
+  ('0019_conteo_ciclico', 'permisos de conteo cíclico',
+     (select count(*) from public.permissions where code in ('perform_cycle_counts','manage_cycle_counts')) = 2),
+  ('seed/0016_conteo_ciclico', 'planes de conteo de ejemplo',
+     case when to_regclass('public.cycle_count_plans') is null then false
+          else (xpath('/row/c/text()', query_to_xml('select count(*) as c from public.cycle_count_plans', false, true, '')))[1]::text::int >= 1 end)
 )
 select case when ok then '✅ OK' else '❌ FALTA' end as estado, objeto, archivo as ejecutar_si_falta
 from checks

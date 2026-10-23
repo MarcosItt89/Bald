@@ -56,7 +56,9 @@ export default function ChecklistRunModal({ runId, onClose, onChanged }) {
   const evidenceFor = (answer) => (answer ? evidence.filter((e) => e.entity_id === answer.id) : [])
   const runEvidence = [...data.runEvidence, ...localEvidence.filter((e) => e.entity_type === 'checklist_run')]
 
-  const canFill = hasPermission(P.FILL_CHECKLISTS) && OPEN_STATUSES.includes(run.status)
+  // Si exige el QR del punto, no se responde hasta escanearlo (la base de datos también lo impide).
+  const needsScan = run.checkpoint_required && !run.checkpoint_scanned_at
+  const canFill = hasPermission(P.FILL_CHECKLISTS) && OPEN_STATUSES.includes(run.status) && !needsScan
   const canReview = hasPermission(P.REVIEW_CHECKLISTS)
   const isOwnRun = run.completed_by === profile.id
 
@@ -140,6 +142,9 @@ export default function ChecklistRunModal({ runId, onClose, onChanged }) {
       )}
       {run.review_status === 'correction_required' && run.review_comment && OPEN_STATUSES.includes(run.status) && (
         <p className="hint-box hint-warning">Corrección solicitada por {run.reviewed_by_name}: {run.review_comment}</p>
+      )}
+      {needsScan && OPEN_STATUSES.includes(run.status) && (
+        <p className="hint-box">Este checklist se inicia escaneando el QR de <strong>{run.checkpoint_name ?? 'su punto'}</strong>: ciérralo y pulsa «Iniciar» en la lista.</p>
       )}
       {canFill && <ProgressBar value={answered} total={questions.length} label={`${answered}/${questions.length} respondidas`} />}
 

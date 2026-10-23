@@ -19,6 +19,7 @@ import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import Input from '../../components/ui/Input'
 import Select from '../../components/ui/Select'
+import { getCheckpoints } from '../../services/checkpointService'
 import { ErrorState } from '../../components/ui/Feedback'
 
 const opts = (map) => Object.entries(map).map(([value, label]) => ({ value, label }))
@@ -37,6 +38,11 @@ export default function ChecklistTemplatesPage() {
   const toast = useToast()
   const { data: rows = [], loading, error, reload } = useAsync(getTemplates)
   const { data: departments = [] } = useAsync(getDepartments)
+  const { data: checkpoints = [] } = useAsync(getCheckpoints)
+  // Un punto por nombre: la plantilla guarda uno «modelo» y cada sucursal usa el suyo con el mismo nombre.
+  const pointOptions = [...new Map(checkpoints.filter((c) => c.is_active).map((c) => [c.name, c])).values()]
+    .map((c) => ({ value: c.id, label: c.name }))
+  const modelName = (id) => checkpoints.find((c) => c.id === id)?.name
   const [editing, setEditing] = useState(null)
   const [questions, setQuestions] = useState([])
   const [saving, setSaving] = useState(false)
@@ -61,6 +67,7 @@ export default function ChecklistTemplatesPage() {
     e.preventDefault()
     const valid = questions.filter((q) => q.text.trim())
     if (!valid.length) { toast.error('Agrega al menos una pregunta'); return }
+    if (editing.checkpoint_required && !editing.checkpoint_id) { toast.error('Elige el punto QR que hay que escanear'); return }
     setSaving(true)
     try {
       await saveTemplate({ ...editing, department_id: editing.department_id || null }, valid)
@@ -121,6 +128,14 @@ export default function ChecklistTemplatesPage() {
               )}
               <label className="checkbox"><input type="checkbox" checked={editing.requires_evidence}
                 onChange={(e) => setEditing({ ...editing, requires_evidence: e.target.checked })} /> Requiere evidencia</label>
+              <label className="checkbox" title="Para iniciar hay que escanear el QR del punto en la sucursal"><input type="checkbox" checked={!!editing.checkpoint_required}
+                disabled={!pointOptions.length && !editing.checkpoint_required}
+                onChange={(e) => setEditing({ ...editing, checkpoint_required: e.target.checked, checkpoint_id: e.target.checked ? editing.checkpoint_id : null })} /> Requiere escanear QR</label>
+              {editing.checkpoint_required && (
+                <Select label="Punto QR" required value={pointOptions.find((o) => o.label === modelName(editing.checkpoint_id))?.value ?? editing.checkpoint_id ?? ''}
+                  placeholder="Selecciona…" options={pointOptions} onChange={(e) => setEditing({ ...editing, checkpoint_id: e.target.value || null })}
+                  hint={pointOptions.length ? 'Cada sucursal usa su punto con este mismo nombre' : 'Primero crea puntos en Puntos QR'} />
+              )}
             </div>
             <h4>Preguntas</h4>
             {questions.map((q, i) => (

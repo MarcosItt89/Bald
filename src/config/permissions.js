@@ -31,6 +31,7 @@ export const P = Object.freeze({
   REVIEW_EVIDENCE:            'review_evidence',
   MANAGE_EXPIRATIONS:         'manage_expirations',
   REGISTER_WASTE:             'register_waste',
+  MANAGE_CHECKPOINTS:         'manage_checkpoints',
   MANAGE_PRICE_CHANGES:       'manage_price_changes',
   MANAGE_SHELF_TAGS:          'manage_shelf_tags',
   VALIDATE_SHELF_TAGS:        'validate_shelf_tags',

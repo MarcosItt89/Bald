@@ -96,7 +96,14 @@ with checks(archivo, objeto, ok) as (values
      to_regclass('cron.job') is not null
      and (xpath('/row/c/text()', query_to_xml(
        case when to_regclass('cron.job') is null then 'select 0 as c'
-            else 'select count(*) as c from cron.job where jobname = ''operalia-recordatorios''' end, false, true, '')))[1]::text::int = 1)
+            else 'select count(*) as c from cron.job where jobname = ''operalia-recordatorios''' end, false, true, '')))[1]::text::int = 1),
+  ('0018_puntos_qr', 'tabla checkpoints',                 to_regclass('public.checkpoints') is not null),
+  ('0018_puntos_qr', 'función start_checklist_with_checkpoint', exists (select 1 from pg_proc where proname='start_checklist_with_checkpoint')),
+  ('0018_puntos_qr', 'trigger trg_checklist_run_checkpoint',     exists (select 1 from pg_trigger where tgname='trg_checklist_run_checkpoint')),
+  ('0018_puntos_qr', 'permiso manage_checkpoints',        exists (select 1 from public.permissions where code='manage_checkpoints')),
+  ('seed/0015_puntos_qr', 'gerente con manage_checkpoints',
+     exists (select 1 from public.role_permissions rp join public.roles r on r.id=rp.role_id
+             where r.code='gerente' and rp.permission_code='manage_checkpoints'))
 )
 select case when ok then '✅ OK' else '❌ FALTA' end as estado, objeto, archivo as ejecutar_si_falta
 from checks

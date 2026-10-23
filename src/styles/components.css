@@ -526,3 +526,13 @@ a.heatmap-cell:hover { outline: 2px solid var(--text-primary); outline-offset: -
 .cl-round-future { border-style: dashed; color: var(--text-muted); }
 .cl-round-current { outline: 2px solid var(--primary); outline-offset: 1px; font-weight: 700; }
 @media (max-width: 768px) { .cl-rounds { padding-left: 12px; } .cl-round { min-height: 36px; } }
+
+/* Puntos QR (0018) */
+.qr-row { display: inline-flex; align-items: center; gap: 10px; }
+.qr-row .cell-sub { display: block; }
+.qr-thumb { display: inline-block; flex-shrink: 0; width: 40px; height: 40px; background: #fff; border-radius: 4px; }
+.qr-thumb svg, .qr-preview svg { width: 100%; height: 100%; display: block; }
+.qr-preview { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.qr-preview > span:first-child { width: 160px; height: 160px; background: #fff; padding: 6px; border-radius: var(--radius-sm); }
+.qr-scan { display: flex; flex-direction: column; gap: 12px; }
+.qr-required { display: inline-flex; align-items: center; gap: 3px; }

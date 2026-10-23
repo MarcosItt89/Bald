@@ -42,6 +42,7 @@ const ReportsPage          = page(() => import('../features/reports/ReportsPage'
 const BranchesPage         = page(() => import('../features/branches/BranchesPage'))
 const DepartmentsPage      = page(() => import('../features/departments/DepartmentsPage'))
 const ZonesPage            = page(() => import('../features/zones/ZonesPage'))
+const CheckpointsPage      = page(() => import('../features/checkpoints/CheckpointsPage'))
 const EmployeesPage        = page(() => import('../features/employees/EmployeesPage'))
 const RolesPage            = page(() => import('../features/roles/RolesPage'))
 const PermissionsPage      = page(() => import('../features/roles/PermissionsPage'))
@@ -69,6 +70,7 @@ const PROTECTED = [
   ['checklists',           ChecklistsPage,         { anyOf: [P.FILL_CHECKLISTS, P.REVIEW_CHECKLISTS] }],
   ['checklists/history',   ChecklistHistoryPage,   { anyOf: [P.REVIEW_CHECKLISTS, P.VIEW_REPORTS] }],
   ['checklists/templates', ChecklistTemplatesPage, { permission: P.MANAGE_CHECKLIST_TEMPLATES }],
+  ['checklists/checkpoints', CheckpointsPage,      { permission: P.MANAGE_CHECKPOINTS }],
   ['evidence',             EvidencePage,           { anyOf: [P.UPLOAD_EVIDENCE, P.REVIEW_EVIDENCE] }],
   ['tasks',                TasksPage,              { anyOf: [P.VIEW_TASKS, P.MANAGE_TASKS] }],
   ['reports',              ReportsPage,            { permission: P.VIEW_REPORTS }],

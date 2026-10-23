@@ -16,7 +16,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CheckSquare, ChevronDown, ChevronRight, Clock, Play, RefreshCw, Settings } from 'lucide-react'
+import { CheckSquare, ChevronDown, ChevronRight, Clock, Play, QrCode, RefreshCw, Settings } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useAsync } from '../../hooks/useAsync'
 import { useToast } from '../../hooks/useToast'
@@ -33,6 +33,7 @@ import StatusBadge from '../../components/ui/StatusBadge'
 import ProgressBar from '../../components/ui/ProgressBar'
 import { EmptyState, ErrorState, Loader } from '../../components/ui/Feedback'
 import ChecklistRunModal from './ChecklistRunModal'
+import CheckpointScanModal from './CheckpointScanModal'
 
 const TABS = [
   { key: 'mine',        label: 'Míos',        statuses: null, mine: true },
@@ -83,6 +84,7 @@ export default function ChecklistsPage() {
   const [branchId, setBranchId] = useState(null) // null = usar la sucursal del Topbar
   const [openRunId, setOpenRunId] = useState(null)
   const [starting, setStarting] = useState(null)
+  const [scanRun, setScanRun] = useState(null) // checklist que exige escanear su punto QR
   const [now, setNow] = useState(nowHHMM)
 
   useEffect(() => {
@@ -142,6 +144,10 @@ export default function ChecklistsPage() {
   const valid = runs.filter((r) => r.status !== 'cancelled').length
 
   const start = async (run) => {
+    if (run.checkpoint_required && !run.checkpoint_scanned_at && ['pending', 'reopened'].includes(run.status)) {
+      setScanRun(run)
+      return
+    }
     setStarting(run.id)
     try {
       if (run.status === 'pending' || run.status === 'reopened') await startRun(run.id)
@@ -206,6 +212,8 @@ export default function ChecklistsPage() {
         ))}
       </div>
 
+      {scanRun && <CheckpointScanModal run={scanRun} onClose={() => setScanRun(null)}
+        onStarted={(id) => { setScanRun(null); setOpenRunId(id); reload() }} />}
       {openRunId && <ChecklistRunModal runId={openRunId} onClose={() => setOpenRunId(null)} onChanged={reload} />}
     </div>
   )
@@ -233,6 +241,7 @@ function RunCard({ run, rounds, future, showBranch, canFill, starting, onStart, 
         </div>
         <div className="cl-run-right">
           {run.requires_evidence && <Badge color="info">Evidencia requerida</Badge>}
+          {run.checkpoint_required && <Badge color={run.checkpoint_scanned_at ? 'success' : 'default'} className="qr-required" title={run.checkpoint_name ? `Punto: ${run.checkpoint_name}` : undefined}><QrCode size={11} /> {run.checkpoint_scanned_at ? 'QR verificado' : 'Requiere QR'}</Badge>}
           {['in_progress', 'reopened'].includes(run.status) && (
             <ProgressBar value={Number(run.answered_questions)} total={Number(run.total_questions)}
               label={`${run.answered_questions}/${run.total_questions}`} width={60} />

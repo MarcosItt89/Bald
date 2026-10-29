@@ -8,11 +8,13 @@
  *
  *   permission: un permiso requerido
  *   anyOf:      basta con tener uno de la lista
+ *   when:       bandera de useAuth() que debe ser verdadera (ej. 'canManageRoles')
  */
 import {
   LayoutDashboard, Package, Tag, ArrowLeftRight, Truck, ClipboardCheck, ShoppingCart,
   DollarSign, Tags, CalendarClock, CheckSquare, Camera, ListTodo, Building, DoorOpen,
   BarChart3, Building2, Layers, Users, Shield, KeyRound, LifeBuoy, History, FileSpreadsheet, Trash2, Map as MapIcon, QrCode, ClipboardList, PackageSearch, Megaphone,
+  Globe, CirclePlus, Headset, Activity, Handshake,
 } from 'lucide-react'
 import { P } from './permissions'
 
@@ -77,8 +79,8 @@ export const NAV_GROUPS = [
       { icon: MapIcon,   label: 'Zonas',         path: '/zones',       permission: P.MANAGE_BRANCHES },
       { icon: Layers,    label: 'Departamentos', path: '/departments', permission: P.MANAGE_BRANCHES },
       { icon: Users,     label: 'Empleados',     path: '/employees',   permission: P.MANAGE_EMPLOYEES },
-      { icon: Shield,    label: 'Roles',         path: '/roles',       anyOf: [P.MANAGE_ROLES, P.MANAGE_EMPLOYEES] },
-      { icon: KeyRound,  label: 'Permisos',      path: '/permissions', permission: P.MANAGE_ROLES },
+      { icon: Shield,    label: 'Roles',         path: '/roles',       when: 'canManageRoles' },
+      { icon: KeyRound,  label: 'Permisos',      path: '/permissions', when: 'canManageRoles' },
     ],
   },
   {
@@ -87,8 +89,20 @@ export const NAV_GROUPS = [
       { icon: LifeBuoy, label: 'Soporte', path: '/support', anyOf: [P.CREATE_TICKETS, P.MANAGE_TICKETS] },
     ],
   },
+  {
+    // Solo superadmins (tabla platform_admins): empresas cliente, su rendimiento, prospectos y soporte de todas las tiendas.
+    label: 'Plataforma',
+    items: [
+      { icon: Globe,      label: 'Empresas',           path: '/plataforma',             when: 'isPlatformAdmin' },
+      { icon: Activity,   label: 'Rendimiento',        path: '/plataforma/rendimiento', when: 'isPlatformAdmin' },
+      { icon: Handshake,  label: 'Prospectos',         path: '/plataforma/prospectos',  when: 'isPlatformAdmin' },
+      { icon: CirclePlus, label: 'Nueva empresa',      path: '/plataforma/nueva',       when: 'isPlatformAdmin' },
+      { icon: Headset,    label: 'Soporte de tiendas', path: '/plataforma/soporte',     when: 'isPlatformAdmin' },
+    ],
+  },
 ]
 
 /** ¿El usuario puede ver este ítem? (misma regla para menú y rutas) */
-export const canAccess = (item, { hasPermission, hasAny }) =>
-  item.permission ? hasPermission(item.permission) : item.anyOf ? hasAny(item.anyOf) : true
+export const canAccess = (item, auth) =>
+  (!item.when || Boolean(auth[item.when]))
+  && (item.permission ? auth.hasPermission(item.permission) : item.anyOf ? auth.hasAny(item.anyOf) : true)

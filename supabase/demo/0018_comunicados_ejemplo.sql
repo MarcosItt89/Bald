@@ -16,6 +16,6 @@ from (values
    'El domingo a las 7:00 hacemos inventario general en la Sucursal Centro. Todos los departamentos se presentan con su lista impresa. No se reciben proveedores ese día.',
    'branch', '001', 7)
 ) as v(username, title, body, scope, branch, days)
-join public.employees e on e.username = v.username
+join public.employees e on e.username = v.username and e.company_id = 'c0000000-0000-4000-8000-000000000001'
 left join public.branches b on b.company_id = e.company_id and b.code = v.branch
 where not exists (select 1 from public.announcements a where a.company_id = e.company_id and a.title = v.title);

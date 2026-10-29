@@ -11,7 +11,7 @@
 --      * request_password_reset: "Olvidé mi contraseña" desde el login avisa
 --        al propietario, administradores y gerente de la sucursal.
 --   3. pg_cron: genera los checklists de cada día automáticamente (cada hora).
---   4. Sucursal Sur activa y 4 checklists nuevos.
+--   4. (Movido a seed_company_base en 0023: 4 checklists nuevos.)
 -- Re-ejecutable.
 -- =============================================================================
 
@@ -276,48 +276,8 @@ exception when others then
   raise notice 'pg_cron no disponible (%). Actívalo en Database → Extensions y vuelve a ejecutar este archivo.', sqlerrm;
 end $$;
 
--- ─── 4. SUCURSAL SUR Y CHECKLISTS NUEVOS ────────────────────────────────────
-update public.branches set status = 'active'
- where id = 'b0000000-0000-4000-8000-000000000003' and status = 'inactive';
-
-insert into public.checklist_templates (company_id, department_id, title, description, shift, start_time, end_time, frequency, requires_evidence)
-select c.id, d.id, v.title, v.descr, v.shift, v.st::time, v.et::time, 'daily', true
-from public.companies c
-cross join (values
-  ('CAJ', 'Limpieza de cajas', 'Canastillas, inicio y fin de cajas, y carritos de servicio (silla de ruedas, carrito eléctrico)', 'especial', '07:00', '22:30'),
-  ('CAJ', 'Recolección de carritos', 'Foto de la hoja firmada de recolección de carritos de 7:00 a 22:00', 'especial', '07:00', '22:30'),
-  ('CAJ', 'Recolección de devoluciones', 'Foto de la hoja firmada por todas las áreas de 7:00 a 22:00', 'especial', '07:00', '22:30'),
-  ('PRO', 'Revisión de tarimas y retornables', 'Existencias en recibo: tarimas azules y cafés, javas de fruta y pacas de cartón', 'cierre', '20:00', '22:30')
-) as v(dept, title, descr, shift, st, et)
-join public.departments d on d.company_id = c.id and d.code = v.dept
-where not exists (select 1 from public.checklist_templates t where t.company_id = c.id and t.title = v.title);
-
-insert into public.checklist_questions (template_id, position, text, answer_type, options, requires_photo, is_required)
-select t.id, q.pos, q.txt, q.typ, q.opts::jsonb, q.photo, q.req
-from public.checklist_templates t
-join (values
-  ('Limpieza de cajas', 1, 'Inicio de cajas: banda, escáner, monitor y mostrador limpios', 'yes_no', null, true, true),
-  ('Limpieza de cajas', 2, 'Canastillas limpias, completas y acomodadas', 'yes_no', null, true, true),
-  ('Limpieza de cajas', 3, 'Sillas de ruedas limpias y en buen estado', 'yes_no', null, false, true),
-  ('Limpieza de cajas', 4, 'Carritos eléctricos limpios y con batería cargada', 'yes_no', null, true, true),
-  ('Limpieza de cajas', 5, 'Fin de cajas: área limpia, sin basura ni producto olvidado', 'yes_no', null, true, true),
-  ('Limpieza de cajas', 6, 'Observaciones (equipo dañado, faltantes)', 'text', null, false, false),
-  ('Recolección de carritos', 1, 'Foto de la hoja de recolección firmada (7:00 a 22:00)', 'photo', null, true, true),
-  ('Recolección de carritos', 2, '¿Todas las horas tienen firma?', 'yes_no', null, false, true),
-  ('Recolección de carritos', 3, 'Número de rondas realizadas', 'number', null, false, true),
-  ('Recolección de carritos', 4, 'Observaciones', 'text', null, false, false),
-  ('Recolección de devoluciones', 1, 'Foto de la hoja de devoluciones firmada (7:00 a 22:00)', 'photo', null, true, true),
-  ('Recolección de devoluciones', 2, '¿Firmaron todas las áreas?', 'yes_no', null, false, true),
-  ('Recolección de devoluciones', 3, 'Áreas que no firmaron (si aplica)', 'text', null, false, false),
-  ('Recolección de devoluciones', 4, 'Piezas devueltas recolectadas', 'number', null, false, true),
-  ('Revisión de tarimas y retornables', 1, 'Tarimas azules en recibo (cantidad)', 'number', null, false, true),
-  ('Revisión de tarimas y retornables', 2, 'Tarimas cafés en recibo (cantidad)', 'number', null, false, true),
-  ('Revisión de tarimas y retornables', 3, 'Javas de fruta (cantidad)', 'number', null, false, true),
-  ('Revisión de tarimas y retornables', 4, 'Pacas de cartón sobrante (cantidad)', 'number', null, false, true),
-  ('Revisión de tarimas y retornables', 5, 'Estado del área de retornables', 'option', '["Ordenada","Con exceso","Obstruye el paso"]', false, true),
-  ('Revisión de tarimas y retornables', 6, 'Foto del área de tarimas y retornables', 'photo', null, true, true),
-  ('Revisión de tarimas y retornables', 7, 'Observaciones', 'text', null, false, false)
-) as q(title, pos, txt, typ, opts, photo, req) on q.title = t.title
-where not exists (select 1 from public.checklist_questions x where x.template_id = t.id);
-
-select public.generate_checklist_runs(id, public.company_today(id)) from public.companies;
+-- ─── 4. CHECKLISTS NUEVOS ───────────────────────────────────────────────────
+-- «Limpieza de cajas», «Recolección de carritos», «Recolección de devoluciones» y
+-- «Revisión de tarimas y retornables» se siembran por empresa con
+-- public.seed_company_base (migración 0023). La Sucursal Sur de Gato Pelón ya
+-- se crea activa en seed/0008_catalogos.sql.

@@ -14,7 +14,7 @@ select i.company_id, i.branch_id, p.department_id, p.id,
        now() - make_interval(days => (x.n + 1)::int) + interval '3 hours'
 from (select i.*, row_number() over (order by md5(p.sku)) as n
         from public.inventory i
-        join public.branches b on b.id = i.branch_id and b.code = '001'
+        join public.branches b on b.id = i.branch_id and b.code = '001' and b.company_id = 'c0000000-0000-4000-8000-000000000001'
         join public.products p on p.id = i.product_id
        where i.stock > 0) x
 join public.inventory i on i.id = x.id

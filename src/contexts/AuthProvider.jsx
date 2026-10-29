@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AuthContext } from './authContext'
 import { supabase, unwrap, friendlyError } from '../lib/supabaseClient'
 import { isSupabaseConfigured, usernameToEmail } from '../config/env'
+import { P } from '../config/permissions'
 
 const BRANCH_KEY = 'operalia.activeBranch'
 
@@ -88,13 +89,13 @@ export default function AuthProvider({ children }) {
     return () => data.subscription.unsubscribe()
   }, [loadProfile])
 
-  const login = useCallback(async (identifier, password) => {
+  const login = useCallback(async (companyCode, identifier, password) => {
     const { error } = await supabase.auth.signInWithPassword({
-      email: usernameToEmail(identifier),
+      email: usernameToEmail(companyCode, identifier),
       password,
     })
     if (error) {
-      if (/invalid login credentials/i.test(error.message)) throw new Error('Usuario o contraseña incorrectos.')
+      if (/invalid login credentials/i.test(error.message)) throw new Error('Empresa, usuario o contraseña incorrectos.')
       if (/email not confirmed/i.test(error.message)) {
         throw new Error('La cuenta no está confirmada. Desactiva "Confirm email" en Supabase o confirma el correo.')
       }
@@ -128,6 +129,8 @@ export default function AuthProvider({ children }) {
     const isZoneScope = profile?.role_scope === 'zone'
     // company y zone trabajan con varias sucursales (zone: solo las de sus zonas, lo asegura RLS).
     const isMultiBranch = isCompanyScope || isZoneScope
+    const isOwner = Boolean(profile?.is_owner)
+    const isPlatformAdmin = Boolean(profile?.is_platform_admin)
     // Sucursal usada para FILTRAR: multi-sucursal puede elegir (null = todas las visibles); el resto, la suya.
     const branchFilter = isMultiBranch ? activeBranchId : profile?.branch_id ?? null
     return {
@@ -138,6 +141,11 @@ export default function AuthProvider({ children }) {
       isCompanyScope,
       isZoneScope,
       isMultiBranch,
+      isOwner,
+      isPlatformAdmin,
+      // Roles y permisos: solo el propietario de la empresa o un superadmin
+      // (misma regla que can_manage_roles() en la migración 0023).
+      canManageRoles: (isOwner || isPlatformAdmin) && permissions.has(P.MANAGE_ROLES),
       zoneIds: profile?.zone_ids ?? [],
       branchFilter,
       // Sucursal usada para CREAR registros (nunca null si el empleado tiene sucursal).

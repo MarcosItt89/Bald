@@ -52,9 +52,15 @@ const PermissionsPage      = page(() => import('../features/roles/PermissionsPag
 const SupportPage          = page(() => import('../features/support/SupportPage'))
 const TicketDetailPage     = page(() => import('../features/support/TicketDetailPage'))
 const NewTicketPage        = page(() => import('../features/support/NewTicketPage'))
+const PlatformCompaniesPage  = page(() => import('../features/platform/PlatformCompaniesPage'))
+const NewCompanyPage         = page(() => import('../features/platform/NewCompanyPage'))
+const PerformancePage        = page(() => import('../features/platform/PerformancePage'))
+const LeadsPage              = page(() => import('../features/platform/LeadsPage'))
+const PlatformSupportPage    = page(() => import('../features/platform/PlatformSupportPage'))
+const PlatformTicketPage     = page(() => import('../features/platform/PlatformTicketPage'))
 const NotFoundPage         = page(() => import('../features/errors/NotFoundPage'))
 
-/** [ruta, componente, regla de acceso] — la regla usa { permission } o { anyOf }. */
+/** [ruta, componente, regla de acceso] — la regla usa { permission }, { anyOf } y/o { when }. */
 const PROTECTED = [
   ['dashboard',            DashboardPage,          { permission: P.VIEW_DASHBOARD }],
   ['announcements',        AnnouncementsPage,      {}],
@@ -84,11 +90,17 @@ const PROTECTED = [
   ['departments',          DepartmentsPage,        { permission: P.MANAGE_BRANCHES }],
   ['zones',                ZonesPage,              { permission: P.MANAGE_BRANCHES }],
   ['employees',            EmployeesPage,          { permission: P.MANAGE_EMPLOYEES }],
-  ['roles',                RolesPage,              { anyOf: [P.MANAGE_ROLES, P.MANAGE_EMPLOYEES] }],
-  ['permissions',          PermissionsPage,        { permission: P.MANAGE_ROLES }],
+  ['roles',                RolesPage,              { when: 'canManageRoles' }],
+  ['permissions',          PermissionsPage,        { when: 'canManageRoles' }],
   ['support',              SupportPage,            { anyOf: [P.CREATE_TICKETS, P.MANAGE_TICKETS] }],
   ['support/new',          NewTicketPage,          { anyOf: [P.CREATE_TICKETS] }],
   ['support/:id',          TicketDetailPage,       { anyOf: [P.CREATE_TICKETS, P.MANAGE_TICKETS] }],
+  ['plataforma',             PlatformCompaniesPage, { when: 'isPlatformAdmin' }],
+  ['plataforma/nueva',       NewCompanyPage,        { when: 'isPlatformAdmin' }],
+  ['plataforma/rendimiento', PerformancePage,       { when: 'isPlatformAdmin' }],
+  ['plataforma/prospectos',  LeadsPage,             { when: 'isPlatformAdmin' }],
+  ['plataforma/soporte',     PlatformSupportPage,   { when: 'isPlatformAdmin' }],
+  ['plataforma/soporte/:id', PlatformTicketPage,    { when: 'isPlatformAdmin' }],
 ]
 
 export const router = createBrowserRouter([

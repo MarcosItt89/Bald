@@ -3,19 +3,16 @@
  *
  * Alta de empleado con cuenta (flujo):
  *   1. Se inserta el empleado (sin user_id) → requiere manage_employees.
- *   2. Con un cliente aislado se hace auth.signUp(usuario@dominio).
- *   3. El trigger on_auth_user_created (SQL) liga la cuenta al empleado cuyo
- *      username coincide. El cliente NO puede asignar user_id por su cuenta.
- *
- * Requisito en Supabase: Authentication → Providers → Email → desactivar
- * "Confirm email" (los correos @operalia.local no existen).
+ *   2. Si trae contraseña, admin_set_password (SQL) crea la cuenta de Auth ya
+ *      confirmada (usuario@<empresa>.operalia.local) y la liga al empleado.
+ *      No se usa auth.signUp: el registro público queda desactivado en Supabase.
  *
  * Limitación conocida: restablecer la contraseña de OTRO usuario requiere la
  * service key (Edge Function). Ver docs/guias/configurar-supabase.md.
  */
-import { supabase, unwrap, createIsolatedClient, friendlyError } from '../lib/supabaseClient'
+import { supabase, unwrap, friendlyError } from '../lib/supabaseClient'
 import { byBranch, ilikeTerm, emptyToNull } from '../lib/queryHelpers'
-import { usernameToEmail } from '../config/env'
+import { AUTH_EMAIL_DOMAIN, normalizeCompanyCode } from '../config/env'
 
 export const getEmployees = ({ branchId, status, search } = {}) => {
   let q = byBranch(supabase.from('v_employees').select('*'), branchId).order('full_name')
@@ -47,15 +44,13 @@ export async function setEmployeeDepartments(employeeId, departmentIds) {
   }
 }
 
-/** Crea la cuenta de Supabase Auth para un empleado ya registrado. */
-export async function createAccount(username, password) {
-  const client = createIsolatedClient()
-  const { error } = await client.auth.signUp({
-    email: usernameToEmail(username),
-    password,
-    options: { data: { username: username.toLowerCase() } },
-  })
-  if (error) throw new Error(`No se pudo crear la cuenta de acceso: ${friendlyError(error)}`)
+/** Crea la cuenta de Supabase Auth (confirmada) para un empleado ya registrado. */
+export async function createAccount(employeeId, password) {
+  try {
+    await adminSetPassword(employeeId, password)
+  } catch (err) {
+    throw new Error(`No se pudo crear la cuenta de acceso: ${err.message}`, { cause: err })
+  }
 }
 
 export async function createEmployee({ password, extraDepartmentIds = [], ...fields }) {
@@ -64,7 +59,7 @@ export async function createEmployee({ password, extraDepartmentIds = [], ...fie
   if (extraDepartmentIds.length) await setEmployeeDepartments(employee.id, extraDepartmentIds)
   if (password) {
     try {
-      await createAccount(employee.username, password)
+      await createAccount(employee.id, password)
     } catch (err) {
       err.message = `El empleado se guardó, pero ${err.message.charAt(0).toLowerCase()}${err.message.slice(1)}`
       throw err
@@ -93,9 +88,9 @@ export async function changeOwnPassword(newPassword) {
 export const adminSetPassword = (employeeId, password) =>
   unwrap(supabase.rpc('admin_set_password', { p_employee_id: employeeId, p_password: password }))
 
-const isRealEmail = (value) => value.includes('@') && !value.toLowerCase().endsWith('@operalia.local')
+const isRealEmail = (value) => value.includes('@') && !value.toLowerCase().endsWith(AUTH_EMAIL_DOMAIN)
 
-export async function requestPasswordReset(identifier) {
+export async function requestPasswordReset(companyCode, identifier) {
   const value = identifier.trim()
   if (isRealEmail(value)) {
     const { error } = await supabase.auth.resetPasswordForEmail(value.toLowerCase(), {
@@ -104,7 +99,7 @@ export async function requestPasswordReset(identifier) {
     if (error) throw new Error(friendlyError(error))
     return 'email'
   }
-  await unwrap(supabase.rpc('request_password_reset', { p_username: value }))
+  await unwrap(supabase.rpc('request_password_reset', { p_company_code: normalizeCompanyCode(companyCode), p_username: value }))
   return 'admin'
 }
 

@@ -19,11 +19,11 @@ export default function AccountProblemPage() {
       <p>
         {status === 'error'
           ? error
-          : `La cuenta ${session?.user?.email ?? ''} no está ligada a un empleado activo. Contacta al administrador.`}
+          : `La cuenta ${session?.user?.email ?? ''} no está ligada a un empleado activo, o el acceso de tu empresa está suspendido. Contacta al administrador.`}
       </p>
       {status === 'error' && (
         <p className="text-muted text-sm">
-          Si es la primera vez, verifica que ya se ejecutó supabase/setup_completo.sql en el SQL Editor.
+          Si es la primera vez, verifica que ya se ejecutó supabase/pendiente.sql (o instalacion-limpia.sql) en el SQL Editor.
         </p>
       )}
       <div className="fatal-actions">

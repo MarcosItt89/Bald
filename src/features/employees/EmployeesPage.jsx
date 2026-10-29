@@ -77,7 +77,7 @@ export default function EmployeesPage() {
 
   const copyPwd = async () => {
     try {
-      await navigator.clipboard.writeText(`Usuario: ${active.employee.username}\nContraseña temporal: ${active.password}`)
+      await navigator.clipboard.writeText(`Empresa: ${profile.company_code}\nUsuario: ${active.employee.username}\nContraseña temporal: ${active.password}`)
       toast.success('Copiado')
     } catch { toast.error('No se pudo copiar') }
   }
@@ -166,7 +166,7 @@ export default function EmployeesPage() {
         {active && (active.done ? (
           <div className="form-stack">
             <p>Comparte estos datos con <strong>{active.employee.full_name}</strong>. Al entrar se le pedirá crear su propia contraseña.</p>
-            <div className="temp-credentials"><span>Usuario</span><code>{active.employee.username}</code><span>Contraseña temporal</span><code>{active.password}</code></div>
+            <div className="temp-credentials"><span>Empresa</span><code>{profile.company_code}</code><span>Usuario</span><code>{active.employee.username}</code><span>Contraseña temporal</span><code>{active.password}</code></div>
           </div>
         ) : (
           <form id="pwd-admin-form" className="form-stack" onSubmit={savePwd}>

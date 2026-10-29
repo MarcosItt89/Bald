@@ -168,47 +168,5 @@ grant select, insert, update, delete on public.support_topics, public.support_ca
 grant select on public.v_support_tickets to authenticated;
 grant execute on function public.can_view_ticket(uuid, uuid, uuid) to authenticated;
 
--- ─── SEMILLA (por cada empresa existente) ───────────────────────────────────
-insert into public.role_permissions (role_id, permission_code)
-select r.id, 'create_tickets' from public.roles r
-where exists (select 1 from public.permissions p where p.code = 'create_tickets')
-on conflict do nothing;
-
-insert into public.support_topics (company_id, code, name, category, default_priority, sla_hours, self_help, sort_order)
-select c.id, v.code, v.name, v.category, v.priority, v.sla, v.help, v.ord
-from public.companies c
-cross join (values
-  ('no_signal_pos', 'Sin señal en caja', 'network', 'high', 4,
-   E'1. Revisa que el cable de red esté conectado en la terminal y en la pared.\n2. Verifica si otras cajas tienen señal.\n3. Apaga y enciende el módem o switch del área (espera 1 minuto).\n4. Si usas WiFi, confirma que estés en la red de la tienda.', 1),
-  ('slow_wifi', 'WiFi lento en piso de venta', 'network', 'medium', 24,
-   E'1. Acércate al repetidor más cercano y vuelve a probar.\n2. Olvida la red y vuelve a conectarte.\n3. Cierra apps que descarguen en segundo plano.\n4. Anota en qué pasillo o zona falla.', 2),
-  ('repeater_down', 'Repetidor o antena sin conexión', 'network', 'high', 8,
-   E'1. Revisa que el repetidor tenga luz encendida.\n2. Desconéctalo de la corriente 10 segundos y vuelve a conectarlo.\n3. Verifica que nadie lo haya movido o desconectado.', 3),
-  ('pos_no_power', 'Terminal de cobro no enciende', 'pos', 'critical', 2,
-   E'1. Revisa que el cable de corriente esté bien conectado.\n2. Prueba en otro contacto o regulador.\n3. Mantén presionado el botón de encendido 10 segundos.\n4. Si hay otra caja libre, usa esa mientras tanto.', 4),
-  ('ticket_printer', 'Impresora de tickets', 'printer', 'high', 8,
-   E'1. Verifica que tenga papel y que el rollo esté bien colocado.\n2. Cierra bien la tapa.\n3. Apágala y enciéndela.\n4. Revisa que el cable USB esté conectado.', 5),
-  ('scanner_no_read', 'Lector no lee', 'scanner', 'medium', 8,
-   E'1. Limpia la ventana del lector con un paño seco.\n2. Desconecta y vuelve a conectar el cable.\n3. Prueba con otro código de barras.\n4. Mientras tanto captura el código a mano.', 6),
-  ('scale_no_connect', 'Báscula no conecta', 'scanner', 'high', 8,
-   E'1. Revisa que la báscula esté encendida y en cero.\n2. Revisa el cable entre la báscula y la caja.\n3. Reinicia la báscula y luego la aplicación de caja.', 7),
-  ('cant_login', 'No puedo iniciar sesión', 'access', 'high', 4,
-   E'1. Revisa que tu usuario esté bien escrito (sin espacios).\n2. Revisa mayúsculas en la contraseña.\n3. Prueba en otro dispositivo.\n4. Pide a tu jefe que confirme que tu cuenta está activa.', 8),
-  ('app_error', 'Error en la app', 'bug', 'medium', 24,
-   E'1. Recarga la página.\n2. Cierra sesión y vuelve a entrar.\n3. Toma una foto o captura del mensaje de error.', 9),
-  ('feature_request', 'Solicitud de mejora', 'feature', 'low', 120,
-   E'Describe qué te gustaría mejorar y cómo te ayudaría en tu trabajo diario.', 10)
-) as v(code, name, category, priority, sla, help, ord)
-on conflict (company_id, code) do nothing;
-
-insert into public.support_canned_responses (company_id, title, body)
-select c.id, v.title, v.body
-from public.companies c
-cross join (values
-  ('Recibido, en revisión', 'Hola, recibimos tu reporte y ya lo estamos revisando. Te avisamos en cuanto tengamos novedades.'),
-  ('Necesitamos más información', 'Para ayudarte mejor, ¿nos puedes enviar una foto del problema y decirnos desde cuándo ocurre?'),
-  ('Técnico en camino', 'Un técnico va en camino a tu sucursal. Por favor mantén el equipo como está para poder revisarlo.'),
-  ('Prueba reiniciar', 'Por favor apaga el equipo, espera 30 segundos y vuelve a encenderlo. Cuéntanos si el problema continúa.'),
-  ('Resuelto', 'El problema quedó resuelto. Si vuelve a ocurrir, reabre este ticket y lo atendemos de inmediato.')
-) as v(title, body)
-on conflict (company_id, title) do nothing;
+-- Los temas de soporte, respuestas rápidas y el permiso create_tickets por rol
+-- se siembran por empresa con public.seed_company_base (migración 0023).

@@ -1,22 +1,22 @@
 /**
  * RolesPage — matriz de permisos por rol.
- * Con manage_roles se activan/desactivan permisos con un clic (se guarda al momento).
+ * Solo el propietario o un superadmin (canManageRoles) entra y edita: se
+ * activan/desactivan permisos con un clic (se guarda al momento).
  */
 import { useMemo, useState } from 'react'
 import { Shield } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useAsync } from '../../hooks/useAsync'
 import { useToast } from '../../hooks/useToast'
-import { P, ROLE_SCOPES } from '../../config/permissions'
+import { ROLE_SCOPES } from '../../config/permissions'
 import { getRoles, getPermissionsCatalog, setRolePermission } from '../../services/roleService'
 import PageHeader from '../../components/ui/PageHeader'
 import Badge from '../../components/ui/Badge'
 import { ErrorState, Loader } from '../../components/ui/Feedback'
 
 export default function RolesPage() {
-  const { hasPermission } = useAuth()
+  const { canManageRoles: canEdit } = useAuth()
   const toast = useToast()
-  const canEdit = hasPermission(P.MANAGE_ROLES)
   const roles = useAsync(getRoles)
   const catalog = useAsync(getPermissionsCatalog)
   const [roleId, setRoleId] = useState(null)

@@ -140,7 +140,7 @@ export default function TicketDetailPage() {
               {!t.assigned_to && <Button variant="outline" size="sm" onClick={() => patch({ assigned_to: profile.id, status: t.status === 'open' ? 'in_progress' : t.status }, 'Ticket tomado')}>Tomar ticket</Button>}
             </>) : (<>
               <p><strong>Prioridad:</strong> <StatusBadge statusMap={PRIORITY} value={t.priority} /></p>
-              <p><strong>Atiende:</strong> {t.assigned_to_name ?? 'Pendiente de asignar'}</p>
+              <p><strong>Atiende:</strong> {t.assigned_to_name ?? (messages.data?.some((m) => m.is_platform) ? 'Soporte Operalia' : 'Pendiente de asignar')}</p>
             </>)}
 
             <dl className="ticket-facts">

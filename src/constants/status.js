@@ -251,6 +251,28 @@ export const ACTIVE_STATUS = {
   suspended: { label: 'Suspendido', color: 'danger'  },
 }
 
+/** Empresas cliente (companies.status, migración 0022). */
+export const COMPANY_STATUS = {
+  active:    { label: 'Activa',     color: 'success' },
+  suspended: { label: 'Suspendida', color: 'danger'  },
+}
+
+/** Salud de la cuenta de una empresa (platform_company_health, migración 0025). */
+export const ACCOUNT_HEALTH = {
+  green:  { label: 'Sana',      color: 'success' },
+  yellow: { label: 'Atención',  color: 'warning' },
+  red:    { label: 'En riesgo', color: 'danger'  },
+}
+
+/** Prospectos de la plataforma (platform_leads.status). */
+export const LEAD_STATUS = {
+  new:         { label: 'Nuevo',       color: 'info'    },
+  demo:        { label: 'Demo',        color: 'primary' },
+  negotiation: { label: 'Negociación', color: 'warning' },
+  won:         { label: 'Ganado',      color: 'success' },
+  lost:        { label: 'Perdido',     color: 'default' },
+}
+
 /** Convierte un mapa { code: {label} | label } a opciones de <Select>. */
 export const toOptions = (map) =>
   Object.entries(map).map(([value, v]) => ({ value, label: typeof v === 'string' ? v : v.label }))

@@ -127,7 +127,8 @@ create table if not exists public.employees (
   updated_at     timestamptz not null default now(),
   unique (company_id, employee_code)
 );
-create unique index if not exists employees_username_lower_key on public.employees (lower(username));
+-- Usuario único por empresa: índice employees_company_username_key en 0022
+-- (antes era global: employees_username_lower_key).
 
 -- FK diferida: gerente de sucursal.
 do $$ begin

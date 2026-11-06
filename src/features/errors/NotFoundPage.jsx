@@ -10,7 +10,7 @@ export default function NotFoundPage() {
         icon={MapPinOff}
         title="Página no encontrada"
         message="La dirección no existe o fue movida."
-        action={<Link className="btn btn-outline btn-sm" to="/dashboard">Ir al inicio</Link>}
+        action={<Link className="btn btn-outline btn-sm" to="/">Ir al inicio</Link>}
       />
     </div>
   )

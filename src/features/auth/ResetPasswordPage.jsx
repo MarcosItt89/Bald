@@ -25,7 +25,7 @@ export default function ResetPasswordPage() {
     try {
       await changeOwnPassword(form.password)
       toast.success('Contraseña actualizada')
-      navigate('/dashboard', { replace: true })
+      navigate('/', { replace: true })
     } catch (err) { toast.error(err.message); setSaving(false) }
   }
 

@@ -535,3 +535,20 @@ export const getAuditLogs = ({ table, limit = 200 } = {}) => {
   if (table) q = q.eq('table_name', table)
   return unwrap(q)
 }
+
+// ─── RENDIMIENTO DE SUCURSALES (0027) ───────────────────────────────────────
+// Mismas métricas que Plataforma → Rendimiento, pero solo de las sucursales
+// que quien consulta puede ver (company: todas; zone: sus zonas; branch: la suya).
+// Los agregados los calcula la base: sin el límite de 1000 filas.
+
+/** Una fila por sucursal y una de total (branch_id null). */
+export const getBranchKpis = ({ from, to }) =>
+  unwrap(supabase.rpc('branch_kpis', { p_from: from, p_to: to }))
+
+/** Serie diaria [{ day, value, base }]; branchId null = todas mis sucursales. */
+export const getBranchTrend = ({ branchId, metric, from, to }) =>
+  unwrap(supabase.rpc('branch_trend', { p_branch_id: branchId || null, p_metric: metric, p_from: from, p_to: to }))
+
+/** % de checklists completados por sucursal y día. */
+export const getBranchHeatmap = ({ from, to }) =>
+  unwrap(supabase.rpc('branch_checklist_heatmap', { p_from: from, p_to: to }))

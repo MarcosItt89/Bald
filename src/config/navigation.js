@@ -9,6 +9,9 @@
  *   permission: un permiso requerido
  *   anyOf:      basta con tener uno de la lista
  *   when:       bandera de useAuth() que debe ser verdadera (ej. 'canManageRoles')
+ *
+ * Grupo con platform: true = Plataforma. Para un superadmin va primero y el
+ * resto (la operación de su propia empresa) queda en una sección plegable.
  */
 import {
   LayoutDashboard, Package, Tag, ArrowLeftRight, Truck, ClipboardCheck, ShoppingCart,
@@ -68,6 +71,7 @@ export const NAV_GROUPS = [
     label: 'Análisis',
     items: [
       { icon: BarChart3, label: 'Estadísticas', path: '/reports', permission: P.VIEW_REPORTS },
+      { icon: Activity,  label: 'Rendimiento de sucursales', path: '/reports/sucursales', permission: P.VIEW_REPORTS },
     ],
   },
   {
@@ -92,6 +96,7 @@ export const NAV_GROUPS = [
   {
     // Solo superadmins (tabla platform_admins): empresas cliente, su rendimiento, prospectos y soporte de todas las tiendas.
     label: 'Plataforma',
+    platform: true,
     items: [
       { icon: Globe,      label: 'Empresas',           path: '/plataforma',             when: 'isPlatformAdmin' },
       { icon: Activity,   label: 'Rendimiento',        path: '/plataforma/rendimiento', when: 'isPlatformAdmin' },

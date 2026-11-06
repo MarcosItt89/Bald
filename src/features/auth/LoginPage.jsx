@@ -28,7 +28,7 @@ export default function LoginPage() {
   const [error, setError] = useState(null)
   const [forgotOpen, setForgotOpen] = useState(false)
 
-  const redirectTo = location.state?.from ?? '/dashboard'
+  const redirectTo = location.state?.from ?? '/'
   if (status === 'signedIn') return <Navigate to={redirectTo} replace />
 
   const handleSubmit = async (e) => {

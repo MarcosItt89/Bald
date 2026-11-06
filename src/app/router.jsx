@@ -8,9 +8,9 @@
  *   sin eso, recargar /inventory daba 404.
  */
 import { lazy, Suspense } from 'react'
-import { createBrowserRouter, Navigate } from 'react-router-dom'
+import { createBrowserRouter } from 'react-router-dom'
 import MainLayout from '../components/layout/MainLayout'
-import { RequireAuth, RequireAccess } from './guards'
+import { HomeRedirect, RequireAuth, RequireAccess } from './guards'
 import { P } from '../config/permissions'
 import RouteError from '../features/errors/RouteError'
 import { Loader } from '../components/ui/Feedback'
@@ -55,6 +55,7 @@ const NewTicketPage        = page(() => import('../features/support/NewTicketPag
 const PlatformCompaniesPage  = page(() => import('../features/platform/PlatformCompaniesPage'))
 const NewCompanyPage         = page(() => import('../features/platform/NewCompanyPage'))
 const PerformancePage        = page(() => import('../features/platform/PerformancePage'))
+const BranchPerformancePage  = page(() => import('../features/reports/BranchPerformancePage'))
 const LeadsPage              = page(() => import('../features/platform/LeadsPage'))
 const PlatformSupportPage    = page(() => import('../features/platform/PlatformSupportPage'))
 const PlatformTicketPage     = page(() => import('../features/platform/PlatformTicketPage'))
@@ -86,6 +87,7 @@ const PROTECTED = [
   ['evidence',             EvidencePage,           { anyOf: [P.UPLOAD_EVIDENCE, P.REVIEW_EVIDENCE] }],
   ['tasks',                TasksPage,              { anyOf: [P.VIEW_TASKS, P.MANAGE_TASKS] }],
   ['reports',              ReportsPage,            { permission: P.VIEW_REPORTS }],
+  ['reports/sucursales',   BranchPerformancePage,  { permission: P.VIEW_REPORTS }],
   ['branches',             BranchesPage,           { permission: P.MANAGE_BRANCHES }],
   ['departments',          DepartmentsPage,        { permission: P.MANAGE_BRANCHES }],
   ['zones',                ZonesPage,              { permission: P.MANAGE_BRANCHES }],
@@ -119,7 +121,7 @@ export const router = createBrowserRouter([
     element: <RequireAuth><MainLayout /></RequireAuth>,
     errorElement: <RouteError />,
     children: [
-      { index: true, element: <Navigate to="/dashboard" replace /> },
+      { index: true, element: <HomeRedirect /> },
       ...PROTECTED.map(([path, Component, rule]) => ({
         path,
         element: <RequireAccess item={rule}><Component /></RequireAccess>,

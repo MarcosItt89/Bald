@@ -10,7 +10,7 @@ export default function ForbiddenPage() {
         icon={ShieldAlert}
         title="No tienes acceso a este módulo"
         message="Si lo necesitas para tu trabajo, pide a tu gerente o al administrador que te asigne el permiso."
-        action={<Link className="btn btn-outline btn-sm" to="/dashboard">Ir al inicio</Link>}
+        action={<Link className="btn btn-outline btn-sm" to="/">Ir al inicio</Link>}
       />
     </div>
   )

@@ -103,6 +103,19 @@ Cada empresa tiene un **código** (por ejemplo `gatopelon`). En el login, el emp
 - **Nueva empresa.**
 - **Soporte de tiendas:** tickets de todas las empresas. Las respuestas llegan firmadas «Soporte Operalia».
 
+**Rendimiento en cascada:** el mismo tablero de métricas en cada nivel, cada quien con lo que le toca. Las métricas son las mismas en todos los niveles (migración 0027).
+
+| Quién | Dónde | Qué ve |
+|---|---|---|
+| Superadmin (Operalia) | Plataforma → Rendimiento. Es su página de inicio. | Todas las empresas; con un clic en una empresa, sus sucursales |
+| Propietario y administradores de una tienda | Análisis → Rendimiento de sucursales | Todas las sucursales de su empresa |
+| Jefe de zona | Igual | Las sucursales de sus zonas |
+| Gerente | Igual | Su sucursal |
+
+Para el detalle de una sucursal (por departamento, checklist o producto) está **Estadísticas**.
+
+**Menú del superadmin:** como su trabajo es el rendimiento de las tiendas, el menú le muestra Plataforma primero. La operación de su propia empresa (Gato Pelón) queda en una sección plegable, «Operación de Gato Pelón», cerrada por defecto. Conserva todos sus permisos; solo no los ve hasta que los busca.
+
 Para agregar o quitar un superadmin, en el SQL Editor; la persona necesita un empleado con cuenta:
 ```sql
 insert into public.platform_admins (user_id)
@@ -146,7 +159,7 @@ Todo está en [supabase/](supabase/). Cada archivo es **re-ejecutable**: no dupl
 
 | Carpeta / archivo | Contenido |
 |---|---|
-| `migrations/` | Esquema: tablas, funciones, triggers, vistas, RLS, Storage y pg_cron (0001 → 0026) |
+| `migrations/` | Esquema: tablas, funciones, triggers, vistas, RLS, Storage y pg_cron (0001 → 0027) |
 | `seed/` | Datos **base** que la operación necesita (ver abajo) |
 | `demo/` | Datos **de ejemplo**, solo para pruebas (ver abajo) |
 | `pruebas/` | Pruebas que se corren a mano en el ambiente de pruebas (`aislamiento.sql`) |

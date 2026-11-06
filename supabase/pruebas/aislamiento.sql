@@ -317,6 +317,15 @@ begin
          'sql', format('select count(*)::int from (select public.announcement_matches(%L::uuid, %L, null, null, null) v) s where v',
                        (select id from public.employees where company_id = v_gp limit 1), 'company'));
   v_orden := v_orden + 3;
+  -- Rendimiento en cascada (0027): solo su empresa y solo las sucursales de su alcance.
+  v_probes := v_probes
+    || jsonb_build_object('orden', v_orden + 1, 'grupo', '2 rpc', 'objeto', 'branch_kpis: filas de otra empresa', 'accion', 'ejecutar',
+         'esperado', 'deny', 'personas', '["sucursal","self","propietario","anon","admin"]'::jsonb,
+         'sql', 'select count(*)::int from public.branch_kpis(current_date - 6, current_date) k where k.company_id is distinct from public.auth_company_id()')
+    || jsonb_build_object('orden', v_orden + 2, 'grupo', '2 rpc', 'objeto', 'branch_kpis: sucursales fuera de su alcance', 'accion', 'ejecutar',
+         'esperado', 'deny', 'personas', '["sucursal","self","propietario","anon","admin"]'::jsonb,
+         'sql', 'select count(*)::int from public.branch_kpis(current_date - 6, current_date) k where k.branch_id is not null and not public.can_access_branch(k.branch_id)');
+  v_orden := v_orden + 2;
 
   -- ─── 3. Roles y permisos: admin no propietario (el propietario es el control) ─
   select id into v_role_caj from public.roles where company_id = v_luna and code = 'cajas';
@@ -571,6 +580,10 @@ left join (values
   ('platform_get_ticket', 'Valida superadmin', false), ('platform_reply_ticket', 'Valida superadmin', false),
   ('platform_company_kpis', 'Valida superadmin', false), ('platform_company_trend', 'Valida superadmin', false),
   ('platform_checklist_heatmap', 'Valida superadmin', false), ('platform_company_health', 'Valida superadmin', false),
+  -- Rendimiento de la propia empresa (0027).
+  ('branch_kpis', 'Valida empresa, view_reports y sucursales de su alcance (my_report_branch_ids)', false),
+  ('branch_trend', 'Valida empresa, view_reports y sucursales de su alcance (my_report_branch_ids)', false),
+  ('branch_checklist_heatmap', 'Valida empresa, view_reports y sucursales de su alcance (my_report_branch_ids)', false),
   -- Pública por diseño (pantalla de login).
   ('request_password_reset', 'Pública por diseño: responde igual exista o no el usuario', true)
 ) as r(fn, nota, anon) on r.fn = p.proname

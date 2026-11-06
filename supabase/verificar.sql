@@ -192,6 +192,11 @@ with checks(archivo, objeto, ok) as (values
   ('0026_aislamiento_empresas', 'anon solo ejecuta request_password_reset',
      not exists (select 1 from pg_proc p where p.pronamespace = 'public'::regnamespace and p.prokind = 'f'
                   and p.proname <> 'request_password_reset' and has_function_privilege('anon', p.oid, 'execute'))),
+  ('0027_rendimiento_en_cascada', 'rendimiento de sucursales por empresa (branch_kpis, branch_trend, branch_checklist_heatmap)',
+     to_regprocedure('public.branch_kpis(date, date)') is not null
+     and to_regprocedure('public.branch_trend(uuid, text, date, date)') is not null
+     and to_regprocedure('public.branch_checklist_heatmap(date, date)') is not null
+     and to_regprocedure('public.perf_kpis(date, date, uuid, uuid[])') is not null),
   ('demo/0019_empresas_demo', 'Gato Pelón, Súper La Luna y Mercado Sol con 4 sucursales',
      (select count(*) from public.companies c where c.code in ('gatopelon','superluna','mercadosol')
         and (select count(*) from public.branches b where b.company_id = c.id) = 4) = 3),

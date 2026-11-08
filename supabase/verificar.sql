@@ -207,6 +207,9 @@ with checks(archivo, objeto, ok) as (values
      to_regprocedure('public.get_company_branding(text)') is not null
      and to_regprocedure('public.set_company_branding(uuid, text, text, text)') is not null
      and has_function_privilege('anon', 'public.get_company_branding(text)', 'execute')),
+  ('0029_consola_marca', 'platform_get_company_branding (Consola, solo superadmin)',
+     to_regprocedure('public.platform_get_company_branding(uuid)') is not null
+     and not has_function_privilege('anon', 'public.platform_get_company_branding(uuid)', 'execute')),
   ('demo/0019_empresas_demo', 'Gato Pelón, Súper La Luna y Mercado Sol con 4 sucursales',
      (select count(*) from public.companies c where c.code in ('gatopelon','superluna','mercadosol')
         and (select count(*) from public.branches b where b.company_id = c.id) = 4) = 3),

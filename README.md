@@ -10,6 +10,13 @@ Plataforma operativa para empresas con varias sucursales. Reúne en una sola app
 
 Cada persona ve solo lo que su rol y su sucursal permiten.
 
+Son **dos apps** en este repo, sobre la misma base de Supabase:
+
+| App | Carpeta | Para quién |
+|---|---|---|
+| **Operalia** (tiendas) | `apps/tiendas` | Los empleados de cada empresa cliente (PWA) |
+| **Consola Operalia** | `apps/consola` | El equipo de Operalia (superadmins): empresas, rendimiento, marca, prospectos, altas y soporte |
+
 **Creadores:** Ramírez Guerra Marcos Yerán y Arámbula García Sarahy. La justificación y los objetivos están en [docs/producto/objetivos.md](docs/producto/objetivos.md).
 
 ## Tecnología
@@ -19,7 +26,8 @@ Cada persona ve solo lo que su rol y su sucursal permiten.
 | Frontend | React 19, Vite, React Router, lucide-react, PWA (`vite-plugin-pwa`) |
 | Backend | Supabase: PostgreSQL, Auth, Storage, Row Level Security, pg_cron |
 | Escáner | `BarcodeDetector` nativo o ZXing; QR con `uqr` |
-| Despliegue | Vercel (`vercel.json` redirige todas las rutas a `index.html`) |
+| Repositorio | npm workspaces: `apps/tiendas`, `apps/consola` y `packages/compartido` |
+| Despliegue | Vercel, un proyecto por app (`vercel.json` de cada app redirige todas las rutas a `index.html`) |
 
 La lógica sensible vive en la base de datos y el frontend solo la consume:
 - permisos;
@@ -33,24 +41,64 @@ La lógica sensible vive en la base de datos y el frontend solo la consume:
 Requisitos: Node 20 o superior y un proyecto de Supabase.
 
 ```bash
-npm install
-cp .env.example .env    # y llena las variables
-npm run dev             # http://localhost:5173
+npm install             # en la raíz: instala las dos apps y el paquete compartido
+cp .env.example .env    # y llena las variables (las dos apps leen este .env)
+npm run dev             # tiendas: http://localhost:5173
+npm run dev:consola     # Consola: http://localhost:5174
 ```
 
 Variables de `.env`, que también se configuran en Vercel → Settings → Environment Variables:
 
-| Variable | Qué es |
-|---|---|
-| `VITE_SUPABASE_URL` | URL del proyecto (Supabase → Project Settings → API) |
-| `VITE_SUPABASE_ANON_KEY` | Llave pública (*publishable/anon*). **Nunca** la `service_role`. |
+| Variable | App | Qué es |
+|---|---|---|
+| `VITE_SUPABASE_URL` | Las dos | URL del proyecto (Supabase → Project Settings → API) |
+| `VITE_SUPABASE_ANON_KEY` | Las dos | Llave pública (*publishable/anon*). **Nunca** la `service_role`. |
+| `VITE_TIENDAS_URL` | Consola | Dominio de la app de tiendas (`https://…`), para armar el link `/e/<código>` y su QR. Sin ella la Consola avisa que el link no sirve |
 
-| Comando | Para qué |
+| Comando (en la raíz) | Para qué |
 |---|---|
-| `npm run dev` | Servidor de desarrollo |
-| `npm run lint` | ESLint |
-| `npm run build` | Compilación de producción en `dist/` |
-| `npm run preview` | Sirve `dist/` para revisarlo |
+| `npm run dev` / `npm run dev:consola` | Servidor de desarrollo de tiendas / Consola |
+| `npm run lint` | ESLint de todo el repo |
+| `npm run build` | Compila las dos apps (`apps/tiendas/dist` y `apps/consola/dist`) |
+| `npm run build:tiendas` / `npm run build:consola` | Compila solo una |
+
+### Repositorio
+
+```
+apps/
+  tiendas/       la app de los empleados (PWA)
+  consola/       Consola Operalia: login con correo, solo superadmins
+packages/
+  compartido/    lo que usan las dos: componentes ui y gráficas, cliente y
+                 servicios de Supabase (lib/), config/env, tema y marca
+                 (theme/, branding/), hooks, utils y estilos
+supabase/        una sola vez, en la raíz: migraciones, semillas y pruebas
+```
+
+- **Importar del paquete compartido:** `import Button from '@operalia/compartido/components/ui/Button.jsx'`, con la extensión.
+- **Qué va en `compartido`:** algo que usen las dos apps. Lo que solo usa una app se queda en esa app.
+- **Páginas de plataforma:** viven en `apps/consola/src/pages`. La app de tiendas todavía las monta en `/plataforma`; se quitarán cuando la Consola esté en producción. Sus rutas internas usan `usePlatformPath()` (`apps/consola/src/paths.js`), así sirven con la base `/` y con `/plataforma`.
+
+### Despliegue en Vercel (dos proyectos)
+
+Las dos apps salen del **mismo repositorio** de GitHub; en Vercel son dos proyectos:
+
+| | Proyecto tiendas | Proyecto Consola |
+|---|---|---|
+| Import | Este repo | Este mismo repo, otra vez («Add New → Project») |
+| **Root Directory** | `apps/tiendas` | `apps/consola` |
+| Framework preset | Vite | Vite |
+| Build / Output | Los de Vite (`vite build`, `dist`) | Igual |
+| Variables | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | Las mismas dos, con los mismos valores, más `VITE_TIENDAS_URL` |
+
+1. **Proyecto existente (tiendas):** en Settings → Build and Deployment, cambia **Root Directory** a `apps/tiendas` **antes** de hacer merge de este cambio. Si no, el siguiente deploy de `main` no encuentra `index.html` en la raíz y falla.
+2. **Proyecto nuevo (Consola):**
+   - **Root Directory:** `apps/consola`.
+   - **Variables:** copia `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` del proyecto de tiendas y agrega `VITE_TIENDAS_URL` con el dominio de tiendas.
+3. **Instalación:**
+   - **Normal:** Vercel detecta los npm workspaces por el `package-lock.json` de la raíz e instala desde ahí. Deja activada la opción «Include files outside of the Root Directory», que viene así por defecto, porque las apps usan `packages/compartido`.
+   - **Si el build no encuentra `@operalia/compartido`:** pon como Install Command `cd ../.. && npm install`.
+4. **Supabase:** en Authentication → URL Configuration, agrega el dominio de la Consola a «Redirect URLs», junto al de tiendas.
 
 ## Arquitectura multiempresa
 
@@ -93,12 +141,16 @@ Cada empresa tiene un **código** (por ejemplo `gatopelon`). En el login, el emp
 
 ## Marca de cada empresa
 
-Cada empresa puede tener su **nombre visible**, su **color** y su **logo** (migración 0028). Los edita su propietario, o un superadmin, en **Configuración → Mi empresa**.
+Cada empresa puede tener su **nombre visible**, su **color** y su **logo** (migración 0028). Los editan:
+- **el propietario**, en Configuración → Mi empresa;
+- **un superadmin**, en la **Consola → Marca**, para cualquier empresa. La Consola lee la marca con `platform_get_company_branding` (0029), incluso de empresas suspendidas.
+
+El editor es el mismo componente en las dos apps: `packages/compartido/src/branding/BrandEditor.jsx`.
 
 | Dónde se ve | Cómo |
 |---|---|
 | Inicio de sesión | Al escribir el código de empresa, la pantalla toma su logo, su nombre y su color (`get_company_branding`) |
-| Toda la app | Botones, menú activo, enlaces e insignias usan su color: `src/theme/brand.js` escribe `--primary`, `--primary-dark`, `--primary-light` y `--primary-deep` en `:root` |
+| Toda la app de tiendas | Botones, menú activo, enlaces e insignias usan su color: `theme/brand.js` (paquete compartido) escribe `--primary`, `--primary-dark`, `--primary-light` y `--primary-deep` en `:root` |
 | Menú lateral | Su logo y su nombre visible. El superadmin ve el de Operalia |
 
 - **Contraste:** si el color elegido no tiene contraste AA (4.5:1) con texto blanco, se oscurece solo hasta tenerlo; la página lo avisa.
@@ -113,8 +165,15 @@ Cada empresa puede tener su **nombre visible**, su **color** y su **logo** (migr
 | **Propietario** | Uno por empresa (`employees.is_owner`), rol Administrador. Es el único que entra a **Roles** y **Permisos** y edita los datos de la empresa. Un administrador que no es propietario no cambia permisos. | Al dar de alta la empresa (Plataforma → Nueva empresa) o en el SQL Editor |
 | **Superadmin** | Equipo de Operalia (tabla `platform_admins`). Ve el grupo **Plataforma** del menú. Es empleado de una empresa, por ejemplo `gatopelon` en Gato Pelón, y fuera de Plataforma solo ve esa empresa. | Solo en el SQL Editor (abajo) |
 
-**Plataforma** (solo superadmins):
-- **Empresas:** estado, salud de la cuenta (verde, amarillo o rojo), avance de arranque, y suspender o reactivar.
+**Consola Operalia** (`apps/consola`, solo superadmins):
+- **Entrada:** su propio login con correo y contraseña. Después pide `get_my_profile()`: si la cuenta no es superadmin (`is_platform_admin`), ve «Sin acceso» y nada más.
+- **Seguridad:** la de verdad está en la base. Cada función `platform_*` valida superadmin por su cuenta.
+- **Correo:** el superadmin necesita un correo registrado en su cuenta de Auth. Si solo tiene el interno, entra con él: `usuario@<código>.operalia.local`.
+- **Páginas:** Empresas, Rendimiento, Marca, Prospectos, Nueva empresa y Soporte de tiendas.
+
+**Plataforma** (las mismas páginas; hoy también siguen en la app de tiendas, en `/plataforma`):
+- **Empresas:** estado, salud de la cuenta (verde, amarillo o rojo), avance de arranque, y suspender o reactivar. Desde cada fila: link de acceso con QR y Marca.
+- **Marca** (Consola): nombre visible, color y logo de cualquier empresa, con su link y QR.
 - **Rendimiento:** indicadores por empresa y sucursal, ranking, tendencia diaria y mapa de calor de checklists. Usa las definiciones de Estadísticas y solo devuelve agregados.
 - **Prospectos:** cadenas interesadas y su estado.
 - **Nueva empresa.**
@@ -176,7 +235,7 @@ Todo está en [supabase/](supabase/). Cada archivo es **re-ejecutable**: no dupl
 
 | Carpeta / archivo | Contenido |
 |---|---|
-| `migrations/` | Esquema: tablas, funciones, triggers, vistas, RLS, Storage y pg_cron (0001 → 0028) |
+| `migrations/` | Esquema: tablas, funciones, triggers, vistas, RLS, Storage y pg_cron (0001 → 0029) |
 | `seed/` | Datos **base** que la operación necesita (ver abajo) |
 | `demo/` | Datos **de ejemplo**, solo para pruebas (ver abajo) |
 | `pruebas/` | Pruebas que se corren a mano en el ambiente de pruebas (`aislamiento.sql`) |
@@ -238,6 +297,8 @@ Córrela después de cada migración que agregue tablas, políticas o funciones.
 
 ## Estructura del frontend
 
+App de tiendas (`apps/tiendas/src`); lo marcado con * está en `packages/compartido/src`:
+
 ```
 src/
   app/         router (rutas protegidas por permiso) y guards
@@ -245,8 +306,8 @@ src/
   contexts/    AuthProvider: sesión, perfil, permisos, alcance y sucursal activa
   services/    un archivo por módulo; único lugar que habla con Supabase
   features/    una carpeta por pantalla o módulo
-  components/  ui/ (botones, tablas, modales), charts/, domain/, layout/
-  hooks/ lib/ utils/ constants/ styles/
+  components/  domain/, layout/   (* ui/ y charts/)
+  * hooks/ lib/ utils/ constants/status.js styles/ theme/ branding/ rendimiento/
 ```
 
 El menú y el router usan el mismo permiso por opción (`navigation.js`), así que no se puede entrar a una pantalla escribiendo la URL.
@@ -274,12 +335,14 @@ El menú y el router usan el mismo permiso por opción (`navigation.js`), así q
 3. **Frontend:**
    - el código en `src/config/permissions.js`;
    - la opción en `navigation.js` y la ruta en `src/app/router.jsx`;
-   - el servicio en `src/services/` y la pantalla en `src/features/`.
+   - el servicio en `src/services/` y la pantalla en `src/features/`;
+   - si es de superadmin, va en la Consola (`apps/consola/src/pages`, su ruta en `router.jsx` y su opción en `layout/ConsolaLayout.jsx`);
+   - lo que usen las dos apps va en `packages/compartido`.
 4. **Instaladores y verificación:**
    - `node supabase/build-pendiente.mjs` regenera los dos instaladores;
    - agrega sus comprobaciones a `supabase/verificar.sql`.
 5. **Revisión:**
-   - `npm run lint` y `npm run build`;
+   - `npm run lint` y `npm run build` en la raíz (compila las dos apps);
    - en el ambiente de pruebas, `supabase/pruebas/aislamiento.sql` sin ❌.
 6. **Diario:** escribe el cambio en [docs/diario-de-cambios/](docs/diario-de-cambios/).
 

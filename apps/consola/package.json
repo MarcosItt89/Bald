@@ -1,0 +1,28 @@
+{
+  "name": "@operalia/consola",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Consola Operalia: plataforma de superadmin (empresas, rendimiento, prospectos, soporte y marca).",
+  "exports": {
+    "./*": "./src/*"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@operalia/compartido": "*",
+    "@supabase/supabase-js": "^2.106.2",
+    "lucide-react": "^1.16.0",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "react-router-dom": "^7.15.1",
+    "uqr": "^0.1.3"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.1",
+    "vite": "^8.0.12"
+  }
+}

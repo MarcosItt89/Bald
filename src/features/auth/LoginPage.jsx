@@ -6,14 +6,21 @@
  * cajero@gatopelon.operalia.local para Supabase Auth. La empresa se recuerda
  * en el dispositivo. Un correo real (con @) entra sin empresa.
  *
- * Si ya hay sesión, redirige al dashboard (o a la página que se intentaba abrir).
+ * Si ya hay sesión, redirige al inicio (o a la página que se intentaba abrir).
+ *
+ * Marca (0028): con el código de empresa escrito se pide su marca pública
+ * (get_company_branding) y se muestran su logo, su nombre y su color. Mientras
+ * tanto se usa la última marca guardada en el dispositivo.
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Eye, EyeOff, LogIn, AlertCircle, Settings } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { normalizeCompanyCode, readRememberedCompany, rememberCompany } from '../../config/env'
 import Button from '../../components/ui/Button'
+import { useDebouncedValue } from '../../hooks/useDebouncedValue'
+import { getCompanyBranding } from '../../services/organizationService'
+import { applyBrand, readSavedBrand } from '../../theme/brand'
 import ForgotPasswordModal from './ForgotPasswordModal'
 
 export default function LoginPage() {
@@ -27,6 +34,29 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [forgotOpen, setForgotOpen] = useState(false)
+  const [brand, setBrand] = useState(() => {
+    const saved = readSavedBrand()
+    return saved && saved.code === readRememberedCompany() ? saved : null
+  })
+  const brandCode = useDebouncedValue(company)
+
+  // Marca de la empresa escrita (o la de Operalia si no existe o está suspendida).
+  useEffect(() => {
+    if (status !== 'signedOut') return undefined
+    if (brandCode.length < 2) { applyBrand(null); return undefined }
+    let active = true
+    getCompanyBranding(brandCode)
+      .then((b) => {
+        if (!active) return
+        const next = b ? { code: brandCode, color: b.brand_color, logoUrl: b.logo_url, name: b.display_name || b.name } : null
+        setBrand(next)
+        applyBrand(next?.color)
+      })
+      .catch(() => {}) // sin marca: se queda la de Operalia
+    return () => { active = false }
+  }, [brandCode, status])
+  const shownBrand = brand && brand.code === company ? brand : null
+  const logo = shownBrand?.logoUrl || '/logo.svg'
 
   const redirectTo = location.state?.from ?? '/'
   if (status === 'signedIn') return <Navigate to={redirectTo} replace />
@@ -50,8 +80,8 @@ export default function LoginPage() {
     <div className="login-page">
       <div className="login-brand">
         <div className="login-brand-content">
-          <img src="/logo.svg" alt="" width="64" height="64" className="login-logo-img" />
-          <h1 className="login-brand-title">Operalia</h1>
+          <img src={logo} alt="" width="64" height="64" className="login-logo-img" />
+          <h1 className="login-brand-title">{shownBrand?.name ?? 'Operalia'}</h1>
           <p className="login-brand-subtitle">
             Plataforma operativa modular para empresas con sucursales: cada acción con quién, cuándo, dónde y con qué evidencia.
           </p>
@@ -68,7 +98,7 @@ export default function LoginPage() {
       <div className="login-form-panel">
         <div className="login-form-card">
           <div className="login-form-header">
-            <img src="/logo.svg" alt="Operalia" width="48" height="48" className="login-form-logo" />
+            <img src={logo} alt={shownBrand?.name ?? 'Operalia'} width="48" height="48" className="login-form-logo" />
             <h2>Iniciar sesión</h2>
             <p>Ingresa tu empresa, usuario y contraseña</p>
           </div>

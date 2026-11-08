@@ -64,10 +64,11 @@ Operalia es **una sola base y una sola app para varias empresas cliente** (tabla
   Aunque alguien llame a la API directamente, solo ve y toca lo de su empresa y su alcance.
 - **Las vistas `v_*`** tienen `security_invoker`: respetan el RLS de quien consulta.
 - **Storage (bucket `evidence`):** la primera carpeta de cada archivo es el id de la empresa. Solo se lee y se sube en la propia carpeta, y solo se borra lo propio.
+- **Storage (bucket `company-branding`, logos):** es público para leer, porque el logo sale en el login. Solo el propietario de esa empresa o un superadmin sube y borra en `{company_id}/`.
 - **Funciones SECURITY DEFINER** (las que saltan RLS):
   - toda función que la API puede llamar valida empresa, usuario o superadmin;
   - las internas, como `generate_checklist_runs` o `seed_company_base`, están revocadas para la API;
-  - `anon` (sin sesión) solo ejecuta `request_password_reset` (migración 0026).
+  - `anon` (sin sesión) solo ejecuta las dos funciones del login: `request_password_reset` (0026) y `get_company_branding` (0028). Esta última solo devuelve nombre, nombre visible, logo y color de una empresa activa.
 - **Empresa suspendida** (`companies.status = 'suspended'`): las funciones `auth_*` devuelven null, así que sus empleados no ven nada. Los procesos de pg_cron se la saltan. No se borra ningún dato.
 - **Superadmin de la plataforma** (`platform_admins`): no abre el RLS de otras empresas. Ve otras empresas solo por las funciones `platform_*`, que exigen `is_platform_admin()` y devuelven agregados (o tickets de soporte, para atenderlos).
 
@@ -87,6 +88,20 @@ Cada empresa tiene un **código** (por ejemplo `gatopelon`). En el login, el emp
 - **Correo real:** si alguien tiene uno registrado (como el propietario), puede entrar con él sin escribir la empresa.
 - **Altas de personal:** las cuentas las crea un administrador o gerente desde **Configuración → Empleados** («Contraseña inicial» o «Crear cuenta»), con `admin_set_password`. El registro público de Supabase debe estar **desactivado**: Authentication → Sign In / Providers → «Allow new users to sign up».
 - **Contraseña olvidada:** «¿Olvidaste tu contraseña?» pide empresa y usuario y avisa a su gerente y al administrador de esa empresa. Responde igual exista o no el usuario.
+
+## Marca de cada empresa
+
+Cada empresa puede tener su **nombre visible**, su **color** y su **logo** (migración 0028). Los edita su propietario, o un superadmin, en **Configuración → Mi empresa**.
+
+| Dónde se ve | Cómo |
+|---|---|
+| Inicio de sesión | Al escribir el código de empresa, la pantalla toma su logo, su nombre y su color (`get_company_branding`) |
+| Toda la app | Botones, menú activo, enlaces e insignias usan su color: `src/theme/brand.js` escribe `--primary`, `--primary-dark`, `--primary-light` y `--primary-deep` en `:root` |
+| Menú lateral | Su logo y su nombre visible. El superadmin ve el de Operalia |
+
+- **Contraste:** si el color elegido no tiene contraste AA (4.5:1) con texto blanco, se oscurece solo hasta tenerlo; la página lo avisa.
+- **Sin parpadeo:** la última marca se guarda en el dispositivo y se aplica antes del primer render.
+- **Logo:** PNG, SVG o WebP de hasta 500 KB, en el bucket público `company-branding`, carpeta `{company_id}/`.
 
 ## Cuentas: empleados, propietario y plataforma
 
@@ -159,7 +174,7 @@ Todo está en [supabase/](supabase/). Cada archivo es **re-ejecutable**: no dupl
 
 | Carpeta / archivo | Contenido |
 |---|---|
-| `migrations/` | Esquema: tablas, funciones, triggers, vistas, RLS, Storage y pg_cron (0001 → 0027) |
+| `migrations/` | Esquema: tablas, funciones, triggers, vistas, RLS, Storage y pg_cron (0001 → 0028) |
 | `seed/` | Datos **base** que la operación necesita (ver abajo) |
 | `demo/` | Datos **de ejemplo**, solo para pruebas (ver abajo) |
 | `pruebas/` | Pruebas que se corren a mano en el ambiente de pruebas (`aislamiento.sql`) |

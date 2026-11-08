@@ -296,7 +296,8 @@ button.cl-run-card { width: 100%; display: flex; align-items: center; gap: 12px;
 @media (max-width: 380px) {
   .evidence-grid { grid-template-columns: 1fr; }
 }
-.sidebar-brand-logo, .login-logo-img { display: block; border-radius: 8px; }
+.sidebar-brand-logo, .login-logo-img { display: block; border-radius: 8px; object-fit: contain; }
+.login-form-logo { object-fit: contain; }
 .login-logo-img { margin-bottom: 24px; border-radius: 14px; }
 .login-form-logo { display: none; border-radius: 12px; margin-bottom: 12px; }
 @media (max-width: 768px) { .login-form-logo { display: block; } }
@@ -461,7 +462,7 @@ a.heatmap-cell:hover { outline: 2px solid var(--text-primary); outline-offset: -
 .delta-good { color: #047857; }
 .delta-bad { color: #b91c1c; }
 .delta-flat { color: var(--text-muted); }
-.filter-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--primary-light); color: #1e40af; border-radius: 999px; padding: 4px 6px 4px 10px; font-size: 12px; font-weight: 600; }
+.filter-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--primary-light); color: var(--primary-deep); border-radius: 999px; padding: 4px 6px 4px 10px; font-size: 12px; font-weight: 600; }
 .filter-chip button { border: none; background: none; color: inherit; display: grid; place-items: center; cursor: pointer; padding: 2px; }
 
 @media (max-width: 768px) {
@@ -494,7 +495,7 @@ a.heatmap-cell:hover { outline: 2px solid var(--text-primary); outline-offset: -
 .waste-reason { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 64px; padding: 8px;
   border: 1px solid var(--border); border-radius: var(--radius); background: var(--card-bg); color: var(--text-secondary); font-size: 13px; font-weight: 600; cursor: pointer; }
 .waste-reason svg { color: var(--text-muted); }
-.waste-reason-active { border-color: var(--primary); background: var(--primary-light); color: #1e40af; }
+.waste-reason-active { border-color: var(--primary); background: var(--primary-light); color: var(--primary-deep); }
 .waste-reason-active svg { color: var(--primary); }
 .waste-photo { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
 @media (max-width: 768px) { .waste-product { flex-direction: column; align-items: stretch; } }
@@ -610,3 +611,26 @@ a.heatmap-cell:hover { outline: 2px solid var(--text-primary); outline-offset: -
 .onboarding-steps li strong { font-weight: 600; color: var(--text-secondary); }
 .onboarding-steps li small { font-size: 12px; }
 .onboarding-steps .onboarding-done > svg { color: var(--success); }
+
+/* ─── Mi empresa: marca (0028) ───────────────────────────────────────────── */
+.brand-layout { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.brand-color-row { display: flex; align-items: center; gap: 8px; }
+.brand-color-row .form-input { max-width: 130px; }
+.brand-color-swatch { width: 44px; height: 38px; padding: 2px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff; cursor: pointer; }
+.brand-logo-row { display: flex; align-items: center; gap: 16px; }
+.brand-logo-box { width: 88px; height: 88px; border: 1px dashed var(--border); border-radius: var(--radius); display: grid; place-items: center; background: #f8fafc; overflow: hidden; }
+.brand-logo-box img { max-width: 80px; max-height: 80px; object-fit: contain; }
+.brand-upload { cursor: pointer; }
+.brand-preview { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--body-bg); }
+.brand-preview-sidebar { display: flex; align-items: center; gap: 10px; padding: 12px; background: var(--sidebar-bg, #0f172a); color: #f8fafc; }
+.brand-preview-sidebar img { border-radius: 6px; object-fit: contain; }
+.brand-preview-sidebar div { display: flex; flex-direction: column; line-height: 1.2; }
+.brand-preview-sidebar small { color: #94a3b8; font-size: 11px; }
+.brand-preview-nav { display: flex; flex-direction: column; gap: 4px; padding: 0 8px 10px; background: var(--sidebar-bg, #0f172a); }
+.brand-preview-nav span { padding: 6px 10px; border-radius: var(--radius-sm); color: #cbd5e1; font-size: 13px; }
+.brand-preview-nav .brand-preview-active { background: var(--primary-deep); color: #fff; }
+.brand-preview-body { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 12px; background: var(--card-bg); }
+.brand-preview-body a { color: var(--primary); font-weight: 500; }
+.brand-preview-login { display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 12px; padding: 16px; border-radius: var(--radius); background: var(--card-bg); }
+.brand-preview-login img { object-fit: contain; border-radius: 8px; }
+@media (max-width: 900px) { .brand-layout { grid-template-columns: 1fr; } }

@@ -6,7 +6,7 @@
   --sidebar-bg:          #0f172a;
   --sidebar-border:      #1e293b;
   --sidebar-hover-bg:    #1e293b;
-  --sidebar-active-bg:   #1e40af;
+  --sidebar-active-bg:   var(--primary-deep);
   --sidebar-text:        #94a3b8;
   --sidebar-text-active: #f1f5f9;
   --sidebar-label:       #475569;
@@ -22,6 +22,7 @@
   --primary:             #2563eb;
   --primary-dark:        #1d4ed8;
   --primary-light:       #dbeafe;
+  --primary-deep:        #1e40af;  /* menú activo, degradado del login (src/theme/brand.js) */
 
   --text-primary:        #0f172a;
   --text-secondary:      #475569;
@@ -623,7 +624,7 @@ input, select, textarea { font-family: inherit; }
 
 .login-brand {
   flex: 1;
-  background: linear-gradient(145deg, #0f172a 0%, #1e3a5f 50%, #1e40af 100%);
+  background: linear-gradient(145deg, #0f172a 0%, #1e3a5f 50%, var(--primary-deep) 100%);
   display: flex;
   align-items: center;
   justify-content: center;

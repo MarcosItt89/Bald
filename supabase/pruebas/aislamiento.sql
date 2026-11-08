@@ -14,6 +14,8 @@
 --      run_daily_maintenance de otra empresa: error.
 --   3. Un admin que NO es propietario no cambia role_permissions,
 --      employee_permissions ni roles (el propietario sí: control positivo).
+--      Marca (0028): nadie cambia la marca ni el logo de OTRA empresa; en la
+--      propia, solo el propietario.
 --   4. Empresa suspendida: no lee nada (y no puede correr el mantenimiento de otra).
 --   5. request_password_reset responde igual exista o no el usuario, y no
 --      toca otra empresa.
@@ -349,6 +351,30 @@ begin
          'tipo', 'dml', 'sql', format('update public.roles set name = name where id = %L', v_role_caj));
   v_orden := v_orden + 4;
 
+  -- Marca (0028). Gato Pelón es la empresa ajena; la propia es Súper La Luna.
+  v_probes := v_probes
+    || jsonb_build_object('orden', v_orden + 1, 'grupo', '3 marca', 'objeto', 'set_company_branding (Gato Pelón)', 'accion', 'ejecutar',
+         'esperado', 'error', 'personas', '["sucursal","self","propietario","anon","admin"]'::jsonb,
+         'sql', format('select count(*)::int from (select public.set_company_branding(%L::uuid, %L, %L, null)) s', v_gp, 'Intruso', '#000000'))
+    || jsonb_build_object('orden', v_orden + 2, 'grupo', '3 marca', 'objeto', 'companies.brand_color (Gato Pelón)', 'accion', 'actualizar',
+         'esperado', 'deny', 'personas', '["sucursal","self","propietario","anon","admin"]'::jsonb, 'tipo', 'dml',
+         'sql', format('update public.companies set brand_color = %L, display_name = %L where id = %L', '#000000', 'Intruso', v_gp))
+    || jsonb_build_object('orden', v_orden + 3, 'grupo', '3 marca', 'objeto', 'logo en company-branding/<Gato Pelón>', 'accion', 'insertar',
+         'esperado', 'deny', 'personas', '["sucursal","self","propietario","anon","admin"]'::jsonb, 'tipo', 'dml',
+         'sql', format('insert into storage.objects (bucket_id, name, owner_id) values (%L, %L, coalesce(auth.uid()::text, %L))',
+                       'company-branding', v_gp || '/logo-intruso.png', 'anon'))
+    || jsonb_build_object('orden', v_orden + 4, 'grupo', '3 marca', 'objeto', 'set_company_branding (su empresa)', 'accion', 'ejecutar',
+         'esperado', '{"propietario":"allow","admin":"error","sucursal":"error"}'::jsonb, 'personas', '["propietario","admin","sucursal"]'::jsonb,
+         'sql', format('select count(*)::int from (select public.set_company_branding(%L::uuid, %L, %L, null)) s', v_luna, 'La Luna', '#7c3aed'))
+    || jsonb_build_object('orden', v_orden + 5, 'grupo', '3 marca', 'objeto', 'logo en company-branding/<su empresa>', 'accion', 'insertar',
+         'esperado', '{"propietario":"allow","admin":"deny","sucursal":"deny"}'::jsonb, 'personas', '["propietario","admin","sucursal"]'::jsonb, 'tipo', 'dml',
+         'sql', format('insert into storage.objects (bucket_id, name, owner_id) values (%L, %L, auth.uid()::text)',
+                       'company-branding', v_luna || '/logo-prueba.png'))
+    || jsonb_build_object('orden', v_orden + 6, 'grupo', '3 marca', 'objeto', 'get_company_branding (login)', 'accion', 'ejecutar',
+         'esperado', 'allow', 'personas', '["anon"]'::jsonb,
+         'sql', 'select count(*)::int from public.get_company_branding(''gatopelon'')');
+  v_orden := v_orden + 6;
+
   -- ─── Ejecuta las pruebas 0 a 3, persona por persona ───────────────────────
   for pe in select * from jsonb_array_elements(v_personas) loop
     v_uid := (pe->>'uid')::uuid;
@@ -580,6 +606,10 @@ left join (values
   ('platform_get_ticket', 'Valida superadmin', false), ('platform_reply_ticket', 'Valida superadmin', false),
   ('platform_company_kpis', 'Valida superadmin', false), ('platform_company_trend', 'Valida superadmin', false),
   ('platform_checklist_heatmap', 'Valida superadmin', false), ('platform_company_health', 'Valida superadmin', false),
+  -- Marca (0028).
+  ('set_company_branding', 'Valida propietario de esa empresa o superadmin', false),
+  ('can_manage_branding_folder', 'Sobre el usuario que llama (propietario de esa carpeta o superadmin)', false),
+  ('get_company_branding', 'Pública por diseño (login): solo nombre, nombre visible, logo y color de una empresa activa', true),
   -- Rendimiento de la propia empresa (0027).
   ('branch_kpis', 'Valida empresa, view_reports y sucursales de su alcance (my_report_branch_ids)', false),
   ('branch_trend', 'Valida empresa, view_reports y sucursales de su alcance (my_report_branch_ids)', false),

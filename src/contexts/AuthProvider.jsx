@@ -10,6 +10,8 @@
  *   3. Si la cuenta no está ligada a un empleado activo → status 'noProfile'.
  *   4. Una vez al día se ejecuta run_daily_maintenance() (genera checklists del
  *      día, marca vencidos, aplica cambios de precio programados).
+ *   5. Se aplica la marca de su empresa (color y logo) y se guarda en el
+ *      dispositivo para el siguiente arranque (src/theme/brand.js).
  *
  * La sesión persiste en localStorage (lo maneja supabase-js), por lo que
  * recargar la página ya NO cierra la sesión (error del prototipo anterior).
@@ -19,6 +21,7 @@ import { AuthContext } from './authContext'
 import { supabase, unwrap, friendlyError } from '../lib/supabaseClient'
 import { isSupabaseConfigured, usernameToEmail } from '../config/env'
 import { P } from '../config/permissions'
+import { applyBrand, brandFromProfile, saveBrand } from '../theme/brand'
 
 const BRANCH_KEY = 'operalia.activeBranch'
 
@@ -68,6 +71,9 @@ export default function AuthProvider({ children }) {
         setState({ status: 'noProfile', session, profile: null, error: null })
         return
       }
+      const brand = brandFromProfile(profile)
+      applyBrand(brand.color)
+      saveBrand(brand)
       setState({ status: 'signedIn', session, profile, error: null })
       runDailyMaintenance()
     } catch (err) {
@@ -146,6 +152,8 @@ export default function AuthProvider({ children }) {
       // Roles y permisos: solo el propietario de la empresa o un superadmin
       // (misma regla que can_manage_roles() en la migración 0023).
       canManageRoles: (isOwner || isPlatformAdmin) && permissions.has(P.MANAGE_ROLES),
+      // Marca de la empresa (0028): mismo criterio que set_company_branding().
+      canEditBranding: isOwner || isPlatformAdmin,
       zoneIds: profile?.zone_ids ?? [],
       branchFilter,
       // Sucursal usada para CREAR registros (nunca null si el empleado tiene sucursal).

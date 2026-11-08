@@ -15,7 +15,8 @@
 --      con ids de otra empresa (las dos primeras, incluso sin sesión). Ahora
 --      solo responden sobre la empresa de quien llama (o en modo sistema).
 --   4. anon podía ejecutar funciones que no necesita. Se le revoca EXECUTE en
---      todas las de public salvo request_password_reset (pantalla de login).
+--      todas las de public salvo las de la pantalla de login:
+--      request_password_reset y get_company_branding (0028).
 -- Re-ejecutable.
 -- =============================================================================
 
@@ -127,7 +128,7 @@ returns boolean language sql stable security definer set search_path = public as
           end)
 $$;
 
--- ─── 4. anon solo ejecuta request_password_reset ────────────────────────────
+-- ─── 4. anon solo ejecuta las funciones del login ───────────────────────────
 -- Supabase da EXECUTE a anon (y a PUBLIC) en cada función nueva. Se conserva
 -- el acceso de authenticated donde ya lo tenía y se quita el de PUBLIC y anon.
 do $$
@@ -136,7 +137,7 @@ begin
   for f in
     select p.oid::regprocedure as sig from pg_proc p
     where p.pronamespace = 'public'::regnamespace and p.prokind = 'f'
-      and p.proname <> 'request_password_reset'
+      and p.proname not in ('request_password_reset', 'get_company_branding')
       and has_function_privilege('anon', p.oid, 'execute')
   loop
     if has_function_privilege('authenticated', f.sig::oid, 'execute') then

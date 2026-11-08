@@ -189,14 +189,24 @@ with checks(archivo, objeto, ok) as (values
      position('auth_company_id' in pg_get_functiondef('public.effective_price(uuid, uuid)'::regprocedure)) > 0
      and position('auth_company_id' in pg_get_functiondef('public.checkpoint_for_run(uuid)'::regprocedure)) > 0
      and position('auth_company_id' in pg_get_functiondef('public.announcement_matches(uuid, text, uuid, uuid, uuid)'::regprocedure)) > 0),
-  ('0026_aislamiento_empresas', 'anon solo ejecuta request_password_reset',
+  ('0026_aislamiento_empresas', 'anon solo ejecuta las funciones del login (request_password_reset, get_company_branding)',
      not exists (select 1 from pg_proc p where p.pronamespace = 'public'::regnamespace and p.prokind = 'f'
-                  and p.proname <> 'request_password_reset' and has_function_privilege('anon', p.oid, 'execute'))),
+                  and p.proname not in ('request_password_reset', 'get_company_branding')
+                  and has_function_privilege('anon', p.oid, 'execute'))),
   ('0027_rendimiento_en_cascada', 'rendimiento de sucursales por empresa (branch_kpis, branch_trend, branch_checklist_heatmap)',
      to_regprocedure('public.branch_kpis(date, date)') is not null
      and to_regprocedure('public.branch_trend(uuid, text, date, date)') is not null
      and to_regprocedure('public.branch_checklist_heatmap(date, date)') is not null
      and to_regprocedure('public.perf_kpis(date, date, uuid, uuid[])') is not null),
+  ('0028_marca_empresa', 'columnas companies.brand_color y display_name',
+     exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'companies' and column_name = 'brand_color')
+     and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'companies' and column_name = 'display_name')),
+  ('0028_marca_empresa', 'bucket público company-branding (500 KB, PNG/SVG/WebP)',
+     exists (select 1 from storage.buckets where id = 'company-branding' and public)),
+  ('0028_marca_empresa', 'get_company_branding (login) y set_company_branding',
+     to_regprocedure('public.get_company_branding(text)') is not null
+     and to_regprocedure('public.set_company_branding(uuid, text, text, text)') is not null
+     and has_function_privilege('anon', 'public.get_company_branding(text)', 'execute')),
   ('demo/0019_empresas_demo', 'Gato Pelón, Súper La Luna y Mercado Sol con 4 sucursales',
      (select count(*) from public.companies c where c.code in ('gatopelon','superluna','mercadosol')
         and (select count(*) from public.branches b where b.company_id = c.id) = 4) = 3),

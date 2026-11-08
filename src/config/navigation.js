@@ -17,7 +17,7 @@ import {
   LayoutDashboard, Package, Tag, ArrowLeftRight, Truck, ClipboardCheck, ShoppingCart,
   DollarSign, Tags, CalendarClock, CheckSquare, Camera, ListTodo, Building, DoorOpen,
   BarChart3, Building2, Layers, Users, Shield, KeyRound, LifeBuoy, History, FileSpreadsheet, Trash2, Map as MapIcon, QrCode, ClipboardList, PackageSearch, Megaphone,
-  Globe, CirclePlus, Headset, Activity, Handshake,
+  Globe, CirclePlus, Headset, Activity, Handshake, Palette,
 } from 'lucide-react'
 import { P } from './permissions'
 
@@ -79,6 +79,7 @@ export const NAV_GROUPS = [
     items: [
       { icon: ClipboardCheck, label: 'Plantillas checklist', path: '/checklists/templates', permission: P.MANAGE_CHECKLIST_TEMPLATES },
       { icon: QrCode,         label: 'Puntos QR',            path: '/checklists/checkpoints', permission: P.MANAGE_CHECKPOINTS },
+      { icon: Palette,   label: 'Mi empresa',    path: '/company',     when: 'canEditBranding' },
       { icon: Building2, label: 'Sucursales',    path: '/branches',    permission: P.MANAGE_BRANCHES },
       { icon: MapIcon,   label: 'Zonas',         path: '/zones',       permission: P.MANAGE_BRANCHES },
       { icon: Layers,    label: 'Departamentos', path: '/departments', permission: P.MANAGE_BRANCHES },

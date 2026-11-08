@@ -42,6 +42,7 @@ const ChecklistTemplatesPage = page(() => import('../features/checklists/Checkli
 const EvidencePage         = page(() => import('../features/evidence/EvidencePage'))
 const TasksPage            = page(() => import('../features/tasks/TasksPage'))
 const ReportsPage          = page(() => import('../features/reports/ReportsPage'))
+const CompanyPage          = page(() => import('../features/company/CompanyPage'))
 const BranchesPage         = page(() => import('../features/branches/BranchesPage'))
 const DepartmentsPage      = page(() => import('../features/departments/DepartmentsPage'))
 const ZonesPage            = page(() => import('../features/zones/ZonesPage'))
@@ -88,6 +89,7 @@ const PROTECTED = [
   ['tasks',                TasksPage,              { anyOf: [P.VIEW_TASKS, P.MANAGE_TASKS] }],
   ['reports',              ReportsPage,            { permission: P.VIEW_REPORTS }],
   ['reports/sucursales',   BranchPerformancePage,  { permission: P.VIEW_REPORTS }],
+  ['company',              CompanyPage,            { when: 'canEditBranding' }],
   ['branches',             BranchesPage,           { permission: P.MANAGE_BRANCHES }],
   ['departments',          DepartmentsPage,        { permission: P.MANAGE_BRANCHES }],
   ['zones',                ZonesPage,              { permission: P.MANAGE_BRANCHES }],

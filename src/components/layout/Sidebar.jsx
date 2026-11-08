@@ -56,10 +56,12 @@ export default function Sidebar({ onNavigate }) {
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
-        <img src="/logo.svg" alt="" width="32" height="32" className="sidebar-brand-logo" />
+        {/* El superadmin trabaja como Operalia; los demás ven la marca de su empresa (0028). */}
+        <img src={!isPlatformAdmin && profile?.company_logo_url ? profile.company_logo_url : '/logo.svg'}
+          alt="" width="32" height="32" className="sidebar-brand-logo" />
         <div className="sidebar-brand-text">
           <span className="sidebar-brand-name">Operalia</span>
-          <span className="sidebar-brand-company">{isPlatformAdmin ? 'Plataforma' : profile?.company_name}</span>
+          <span className="sidebar-brand-company">{isPlatformAdmin ? 'Plataforma' : profile?.company_display_name || profile?.company_name}</span>
         </div>
       </div>
 

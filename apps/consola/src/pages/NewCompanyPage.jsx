@@ -18,7 +18,6 @@ import Card from '@operalia/compartido/components/ui/Card.jsx'
 import Button from '@operalia/compartido/components/ui/Button.jsx'
 import Input from '@operalia/compartido/components/ui/Input.jsx'
 import Select from '@operalia/compartido/components/ui/Select.jsx'
-import { usePlatformPath } from '../paths'
 
 const TIMEZONES = [
   ['America/Tijuana', 'Tijuana (Baja California)'],
@@ -41,7 +40,6 @@ const cleanUsername = (v) => v.toLowerCase().replace(/[^a-z0-9._-]/g, '')
 
 export default function NewCompanyPage() {
   const navigate = useNavigate()
-  const path = usePlatformPath()
   const toast = useToast()
   const location = useLocation()
   const [lead, setLead] = useState(() => location.state?.lead ?? null)
@@ -96,7 +94,7 @@ export default function NewCompanyPage() {
             <div className="row-actions">
               <Button variant="outline" onClick={copy}><Copy size={14} /> Copiar</Button>
               <Button variant="ghost" onClick={again}>Dar de alta otra</Button>
-              <Button onClick={() => navigate(path())}>Ver empresas</Button>
+              <Button onClick={() => navigate('/')}>Ver empresas</Button>
             </div>
           </div>
         </Card>
@@ -156,7 +154,7 @@ export default function NewCompanyPage() {
         </Card>
 
         <div className="row-actions">
-          <Button variant="ghost" onClick={() => navigate(path())}>Cancelar</Button>
+          <Button variant="ghost" onClick={() => navigate('/')}>Cancelar</Button>
           <Button type="submit" loading={saving} disabled={form.ownerPassword.length < 8}>Crear empresa</Button>
         </div>
       </form>

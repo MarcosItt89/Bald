@@ -140,16 +140,6 @@ input, select, textarea { font-family: inherit; }
 
 .nav-group { margin-bottom: 4px; }
 
-/* Superadmin: la operación de su empresa, plegable (Sidebar.jsx) */
-.nav-section { margin-top: 8px; border-top: 1px solid var(--sidebar-border); padding-top: 6px; }
-.nav-section-toggle {
-  display: flex; align-items: center; gap: 6px; width: 100%;
-  padding: 8px 10px; background: none; border: 0; cursor: pointer;
-  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px;
-  color: var(--sidebar-label); text-align: left; border-radius: var(--radius-sm);
-}
-.nav-section-toggle:hover { color: var(--sidebar-text-active); background: var(--sidebar-hover-bg); }
-
 .nav-group-label {
   display: block;
   font-size: 10px;

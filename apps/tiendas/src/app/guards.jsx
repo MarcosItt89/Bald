@@ -3,7 +3,7 @@
  *
  *   <RequireAuth>        → exige sesión iniciada y empleado ligado; si no, manda a /login
  *   <RequireAccess item> → exige el permiso del ítem de navegación; si no, muestra 403
- *   <HomeRedirect>       → página de inicio según el rol
+ *   <HomeRedirect>       → página de inicio (Dashboard)
  *
  * Corrige el error del prototipo: antes cualquier usuario podía abrir
  * /employees escribiendo la URL aunque el menú no mostrara la opción.
@@ -25,10 +25,9 @@ export function RequireAuth({ children }) {
   return children
 }
 
-/** Inicio: el superadmin entra a Plataforma → Rendimiento; los demás, al Dashboard. */
+/** Inicio: el Dashboard. La plataforma de superadmin vive en la Consola Operalia. */
 export function HomeRedirect() {
-  const { isPlatformAdmin } = useAuth()
-  return <Navigate to={isPlatformAdmin ? '/plataforma/rendimiento' : '/dashboard'} replace />
+  return <Navigate to="/dashboard" replace />
 }
 
 export function RequireAccess({ item, children }) {

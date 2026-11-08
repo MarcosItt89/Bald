@@ -1,7 +1,7 @@
 /**
  * Rutas de la Consola Operalia. Todas exigen superadmin (RequireConsola);
  * /login es pública. Las páginas se cargan bajo demanda.
- * La app de tiendas monta estas mismas páginas bajo /plataforma (transitorio).
+ * La app de tiendas ya no las tiene: en /plataforma solo muestra un aviso con el link aquí.
  */
 import { lazy, Suspense } from 'react'
 import { createBrowserRouter } from 'react-router-dom'

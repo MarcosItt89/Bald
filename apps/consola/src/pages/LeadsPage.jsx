@@ -22,7 +22,6 @@ import Input, { Textarea } from '@operalia/compartido/components/ui/Input.jsx'
 import Select from '@operalia/compartido/components/ui/Select.jsx'
 import StatusBadge from '@operalia/compartido/components/ui/StatusBadge.jsx'
 import { ErrorState } from '@operalia/compartido/components/ui/Feedback.jsx'
-import { usePlatformPath } from '../paths'
 
 const EMPTY = { chain_name: '', contact_name: '', contact_email: '', contact_phone: '', branch_count: '', business_type: '', status: 'new', notes: '' }
 const OPEN = ['new', 'demo', 'negotiation']
@@ -36,7 +35,6 @@ const TABS = [
 
 export default function LeadsPage() {
   const navigate = useNavigate()
-  const path = usePlatformPath()
   const toast = useToast()
   const { data: leads = [], loading, error, reload } = useAsync(getLeads)
   const { data: companies = [] } = useAsync(getCompanies)
@@ -50,7 +48,7 @@ export default function LeadsPage() {
   const rows = leads.filter(current.match)
   const tabs = TABS.map((t) => ({ key: t.key, label: t.label, count: t.key === 'all' ? 0 : leads.filter(t.match).length }))
 
-  const provision = useCallback((lead) => navigate(path('nueva'), { state: { lead } }), [navigate, path])
+  const provision = useCallback((lead) => navigate('/nueva', { state: { lead } }), [navigate])
 
   const submit = async (e) => {
     e.preventDefault()

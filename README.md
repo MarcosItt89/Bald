@@ -54,6 +54,7 @@ Variables de `.env`, que también se configuran en Vercel → Settings → Envir
 | `VITE_SUPABASE_URL` | Las dos | URL del proyecto (Supabase → Project Settings → API) |
 | `VITE_SUPABASE_ANON_KEY` | Las dos | Llave pública (*publishable/anon*). **Nunca** la `service_role`. |
 | `VITE_TIENDAS_URL` | Consola | Dominio de la app de tiendas (`https://…`), para armar el link `/e/<código>` y su QR. Sin ella la Consola avisa que el link no sirve |
+| `VITE_CONSOLA_URL` | Tiendas | Dominio de la Consola (`https://…`). Lo usan el aviso de `/plataforma` y el link «Consola Operalia» del menú del superadmin. Sin ella el aviso no trae link |
 
 | Comando (en la raíz) | Para qué |
 |---|---|
@@ -77,7 +78,7 @@ supabase/        una sola vez, en la raíz: migraciones, semillas y pruebas
 
 - **Importar del paquete compartido:** `import Button from '@operalia/compartido/components/ui/Button.jsx'`, con la extensión.
 - **Qué va en `compartido`:** algo que usen las dos apps. Lo que solo usa una app se queda en esa app.
-- **Páginas de plataforma:** viven en `apps/consola/src/pages`. La app de tiendas todavía las monta en `/plataforma`; se quitarán cuando la Consola esté en producción. Sus rutas internas usan `usePlatformPath()` (`apps/consola/src/paths.js`), así sirven con la base `/` y con `/plataforma`.
+- **Páginas de plataforma:** viven solo en `apps/consola/src/pages`. La app de tiendas ya no las tiene. En `/plataforma/*` muestra el aviso «La plataforma se movió a la Consola», con el link a la misma página en la Consola (`/plataforma/soporte/123` → `<consola>/soporte/123`).
 
 ### Despliegue en Vercel (dos proyectos)
 
@@ -89,7 +90,7 @@ Las dos apps salen del **mismo repositorio** de GitHub; en Vercel son dos proyec
 | **Root Directory** | `apps/tiendas` | `apps/consola` |
 | Framework preset | Vite | Vite |
 | Build / Output | Los de Vite (`vite build`, `dist`) | Igual |
-| Variables | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | Las mismas dos, con los mismos valores, más `VITE_TIENDAS_URL` |
+| Variables | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, más `VITE_CONSOLA_URL` | Las mismas dos, con los mismos valores, más `VITE_TIENDAS_URL` |
 
 1. **Proyecto existente (tiendas):** en Settings → Build and Deployment, cambia **Root Directory** a `apps/tiendas` **antes** de hacer merge de este cambio. Si no, el siguiente deploy de `main` no encuentra `index.html` en la raíz y falla.
 2. **Proyecto nuevo (Consola):**
@@ -132,7 +133,7 @@ Cada empresa tiene un **código** (por ejemplo `gatopelon`). En el login, el emp
 | Usuario | `cajero` | Único dentro de su empresa (otra empresa puede tener su propio `cajero`) |
 | Contraseña | — | La primera es temporal y se cambia al entrar |
 
-- **Link de la empresa:** `https://<dominio>/e/<código>` (por ejemplo `/e/gatopelon`). Al abrirlo, o al escanear su QR, el dispositivo recuerda la empresa y aplica su marca. Después, el login solo pide usuario y contraseña y muestra el logo y el nombre de la empresa, con «¿No es tu empresa? Cambiar». Un código que no existe, o de una empresa suspendida, solo dice «Empresa no encontrada». El superadmin copia el link e imprime el QR en **Plataforma → Empresas** (botón QR de cada fila).
+- **Link de la empresa:** `https://<dominio>/e/<código>` (por ejemplo `/e/gatopelon`). Al abrirlo, o al escanear su QR, el dispositivo recuerda la empresa y aplica su marca. Después, el login solo pide usuario y contraseña y muestra el logo y el nombre de la empresa, con «¿No es tu empresa? Cambiar». Un código que no existe, o de una empresa suspendida, solo dice «Empresa no encontrada». El superadmin copia el link e imprime el QR en la **Consola → Empresas** (botón QR de cada fila) o en **Consola → Marca**.
 - **App instalada (PWA):** el manifest usa `start_url: "."`. La app instalada abre en la raíz del sitio y usa la empresa que el link dejó recordada.
 - **Correo de Auth:** internamente Supabase Auth usa el correo `usuario@<código>.operalia.local` (`cajero@gatopelon.operalia.local`). Ese correo no existe; nadie lo escribe.
 - **Correo real:** si alguien tiene uno registrado (como el propietario), puede entrar con él sin escribir la empresa.
@@ -162,8 +163,8 @@ El editor es el mismo componente en las dos apps: `packages/compartido/src/brand
 | Cuenta | Qué es | Cómo se crea |
 |---|---|---|
 | **Empleado** | Ve lo que su rol y su alcance (empresa, zona, sucursal, departamento o solo lo suyo) permiten, dentro de su empresa | Configuración → Empleados |
-| **Propietario** | Uno por empresa (`employees.is_owner`), rol Administrador. Es el único que entra a **Roles** y **Permisos** y edita los datos de la empresa. Un administrador que no es propietario no cambia permisos. | Al dar de alta la empresa (Plataforma → Nueva empresa) o en el SQL Editor |
-| **Superadmin** | Equipo de Operalia (tabla `platform_admins`). Ve el grupo **Plataforma** del menú. Es empleado de una empresa, por ejemplo `gatopelon` en Gato Pelón, y fuera de Plataforma solo ve esa empresa. | Solo en el SQL Editor (abajo) |
+| **Propietario** | Uno por empresa (`employees.is_owner`), rol Administrador. Es el único que entra a **Roles** y **Permisos** y edita los datos de la empresa. Un administrador que no es propietario no cambia permisos. | Al dar de alta la empresa (Consola → Nueva empresa) o en el SQL Editor |
+| **Superadmin** | Equipo de Operalia (tabla `platform_admins`). Trabaja en la **Consola Operalia**. En la app de tiendas es un empleado más de su empresa, por ejemplo `gatopelon` en Gato Pelón, y solo ve esa empresa; su menú trae además el link a la Consola. | Solo en el SQL Editor (abajo) |
 
 **Consola Operalia** (`apps/consola`, solo superadmins):
 - **Entrada:** su propio login con correo y contraseña. Después pide `get_my_profile()`: si la cuenta no es superadmin (`is_platform_admin`), ve «Sin acceso» y nada más.
@@ -171,7 +172,7 @@ El editor es el mismo componente en las dos apps: `packages/compartido/src/brand
 - **Correo:** el superadmin necesita un correo registrado en su cuenta de Auth. Si solo tiene el interno, entra con él: `usuario@<código>.operalia.local`.
 - **Páginas:** Empresas, Rendimiento, Marca, Prospectos, Nueva empresa y Soporte de tiendas.
 
-**Plataforma** (las mismas páginas; hoy también siguen en la app de tiendas, en `/plataforma`):
+**Páginas de la Consola:**
 - **Empresas:** estado, salud de la cuenta (verde, amarillo o rojo), avance de arranque, y suspender o reactivar. Desde cada fila: link de acceso con QR y Marca.
 - **Marca** (Consola): nombre visible, color y logo de cualquier empresa, con su link y QR.
 - **Rendimiento:** indicadores por empresa y sucursal, ranking, tendencia diaria y mapa de calor de checklists. Usa las definiciones de Estadísticas y solo devuelve agregados.
@@ -183,14 +184,14 @@ El editor es el mismo componente en las dos apps: `packages/compartido/src/brand
 
 | Quién | Dónde | Qué ve |
 |---|---|---|
-| Superadmin (Operalia) | Plataforma → Rendimiento. Es su página de inicio. | Todas las empresas; con un clic en una empresa, sus sucursales |
+| Superadmin (Operalia) | Consola → Rendimiento | Todas las empresas; con un clic en una empresa, sus sucursales |
 | Propietario y administradores de una tienda | Análisis → Rendimiento de sucursales | Todas las sucursales de su empresa |
 | Jefe de zona | Igual | Las sucursales de sus zonas |
 | Gerente | Igual | Su sucursal |
 
 Para el detalle de una sucursal (por departamento, checklist o producto) está **Estadísticas**.
 
-**Menú del superadmin:** como su trabajo es el rendimiento de las tiendas, el menú le muestra Plataforma primero. La operación de su propia empresa (Gato Pelón) queda en una sección plegable, «Operación de Gato Pelón», cerrada por defecto. Conserva todos sus permisos; solo no los ve hasta que los busca.
+**Superadmin en la app de tiendas:** ve el menú de su empresa como cualquier empleado. Abajo trae «Plataforma → Consola Operalia», que abre la Consola en otra pestaña. La plataforma ya no está en la app de tiendas.
 
 Para agregar o quitar un superadmin, en el SQL Editor; la persona necesita un empleado con cuenta:
 ```sql
@@ -203,10 +204,10 @@ on conflict do nothing;
 
 ## Cómo se da de alta una tienda
 
-1. **Prospecto** (opcional): regístralo en **Plataforma → Prospectos** (cadena, contacto, sucursales y giro) y avanza su estado: nuevo → demo → negociación → ganado.
+1. **Prospecto** (opcional): regístralo en **Consola → Prospectos** (cadena, contacto, sucursales y giro) y avanza su estado: nuevo → demo → negociación → ganado.
 2. **Alta:**
    - **Desde un prospecto ganado:** «Dar de alta» abre **Nueva empresa** con nombre, código sugerido y propietario llenos.
-   - **Sin prospecto:** entra directo a Plataforma → Nueva empresa.
+   - **Sin prospecto:** entra directo a Consola → Nueva empresa.
 3. **Llena el formulario:**
    - empresa: nombre, razón social, RFC, **código** y zona horaria;
    - primera sucursal;
@@ -217,8 +218,8 @@ on conflict do nothing;
    - corre `seed_company_base`;
    - crea al propietario con su cuenta, que pedirá cambiar la contraseña;
    - registra el alta en auditoría.
-4. **Comparte los datos de acceso:** la tarjeta final trae la URL de la app, el código de empresa, el usuario y la contraseña temporal para copiar. Para los empleados, en **Plataforma → Empresas** está el link `/e/<código>` y su QR para imprimir y pegar en la tienda.
-5. **Acompaña el arranque:** en Plataforma → Empresas, el **avance de arranque** marca 5 pasos:
+4. **Comparte los datos de acceso:** la tarjeta final trae la URL de la app, el código de empresa, el usuario y la contraseña temporal para copiar. Para los empleados, en **Consola → Empresas** está el link `/e/<código>` y su QR para imprimir y pegar en la tienda.
+5. **Acompaña el arranque:** en Consola → Empresas, el **avance de arranque** marca 5 pasos:
    - sucursales creadas;
    - empleados con cuenta;
    - productos cargados;

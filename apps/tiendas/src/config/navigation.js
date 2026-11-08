@@ -9,15 +9,11 @@
  *   permission: un permiso requerido
  *   anyOf:      basta con tener uno de la lista
  *   when:       bandera de useAuth() que debe ser verdadera (ej. 'canManageRoles')
- *
- * Grupo con platform: true = Plataforma. Para un superadmin va primero y el
- * resto (la operación de su propia empresa) queda en una sección plegable.
  */
 import {
   LayoutDashboard, Package, Tag, ArrowLeftRight, Truck, ClipboardCheck, ShoppingCart,
   DollarSign, Tags, CalendarClock, CheckSquare, Camera, ListTodo, Building, DoorOpen,
-  BarChart3, Building2, Layers, Users, Shield, KeyRound, LifeBuoy, History, FileSpreadsheet, Trash2, Map as MapIcon, QrCode, ClipboardList, PackageSearch, Megaphone,
-  Globe, CirclePlus, Headset, Activity, Handshake, Palette,
+  BarChart3, Building2, Layers, Users, Shield, KeyRound, LifeBuoy, History, FileSpreadsheet, Trash2, Map as MapIcon, QrCode, ClipboardList, PackageSearch, Megaphone, Palette, Activity,
 } from 'lucide-react'
 import { P } from './permissions'
 
@@ -92,18 +88,6 @@ export const NAV_GROUPS = [
     label: 'Ayuda',
     items: [
       { icon: LifeBuoy, label: 'Soporte', path: '/support', anyOf: [P.CREATE_TICKETS, P.MANAGE_TICKETS] },
-    ],
-  },
-  {
-    // Solo superadmins (tabla platform_admins): empresas cliente, su rendimiento, prospectos y soporte de todas las tiendas.
-    label: 'Plataforma',
-    platform: true,
-    items: [
-      { icon: Globe,      label: 'Empresas',           path: '/plataforma',             when: 'isPlatformAdmin' },
-      { icon: Activity,   label: 'Rendimiento',        path: '/plataforma/rendimiento', when: 'isPlatformAdmin' },
-      { icon: Handshake,  label: 'Prospectos',         path: '/plataforma/prospectos',  when: 'isPlatformAdmin' },
-      { icon: CirclePlus, label: 'Nueva empresa',      path: '/plataforma/nueva',       when: 'isPlatformAdmin' },
-      { icon: Headset,    label: 'Soporte de tiendas', path: '/plataforma/soporte',     when: 'isPlatformAdmin' },
     ],
   },
 ]

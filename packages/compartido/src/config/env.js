@@ -20,6 +20,9 @@ export const env = {
   // Dominio de la app de tiendas (https://…, sin / final). Solo lo necesita la
   // Consola para armar el link /e/<código>; en tiendas se usa su propio dominio.
   tiendasUrl: (import.meta.env.VITE_TIENDAS_URL || '').replace(/\/+$/, ''),
+  // Dominio de la Consola Operalia. La app de tiendas lo usa para el aviso de
+  // /plataforma y el link del superadmin en el menú.
+  consolaUrl: (import.meta.env.VITE_CONSOLA_URL || '').replace(/\/+$/, ''),
 }
 
 export const isSupabaseConfigured = Boolean(env.supabaseUrl && env.supabaseKey)

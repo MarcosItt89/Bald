@@ -19,10 +19,8 @@ import Select from '@operalia/compartido/components/ui/Select.jsx'
 import StatusBadge from '@operalia/compartido/components/ui/StatusBadge.jsx'
 import { ErrorState, Loader } from '@operalia/compartido/components/ui/Feedback.jsx'
 import { BlocksBadge, DueBadge } from '@operalia/compartido/support/supportUi.jsx'
-import { usePlatformPath } from '../paths'
 
 export default function PlatformTicketPage() {
-  const path = usePlatformPath()
   const { id } = useParams()
   const toast = useToast()
   const [body, setBody] = useState('')
@@ -54,7 +52,7 @@ export default function PlatformTicketPage() {
 
   return (
     <div className="page">
-      <Link to={path('soporte')} className="back-link"><ArrowLeft size={14} /> Soporte de tiendas</Link>
+      <Link to="/soporte" className="back-link"><ArrowLeft size={14} /> Soporte de tiendas</Link>
       <PageHeader title={`${t.folio} · ${t.subject}`}
         subtitle={`${t.company_name} · ${t.topic_name ?? TICKET_CATEGORY[t.category] ?? t.category} · abierto por ${t.created_by_name ?? '—'} ${formatDateTime(t.created_at)}`}
         actions={<div className="badge-stack"><StatusBadge statusMap={TICKET_STATUS} value={t.status} /><BlocksBadge ticket={t} /><DueBadge ticket={t} /></div>} />

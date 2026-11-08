@@ -4,9 +4,6 @@
   "version": "0.0.0",
   "type": "module",
   "description": "Consola Operalia: plataforma de superadmin (empresas, rendimiento, prospectos, soporte y marca).",
-  "exports": {
-    "./*": "./src/*"
-  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",

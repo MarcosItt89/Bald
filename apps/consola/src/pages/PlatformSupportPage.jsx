@@ -20,7 +20,6 @@ import SearchInput from '@operalia/compartido/components/ui/SearchInput.jsx'
 import StatusBadge from '@operalia/compartido/components/ui/StatusBadge.jsx'
 import { ErrorState } from '@operalia/compartido/components/ui/Feedback.jsx'
 import { BlocksBadge, DueBadge } from '@operalia/compartido/support/supportUi.jsx'
-import { usePlatformPath } from '../paths'
 
 const TABS = [
   { key: 'active', label: 'Abiertos' },
@@ -32,7 +31,6 @@ const TABS = [
 
 export default function PlatformSupportPage() {
   const navigate = useNavigate()
-  const path = usePlatformPath()
   const [params, setParams] = useSearchParams()
   const companyId = params.get('empresa') ?? ''
   const [tab, setTab] = useState('active')
@@ -59,7 +57,7 @@ export default function PlatformSupportPage() {
       </div>
       {error && <ErrorState error={error} onRetry={reload} />}
       <Card flush>
-        <Table data={rows} loading={loading} onRowClick={(r) => navigate(path(`soporte/${r.id}`))} emptyText="Sin tickets aquí" columns={[
+        <Table data={rows} loading={loading} onRowClick={(r) => navigate(`/soporte/${r.id}`)} emptyText="Sin tickets aquí" columns={[
           { key: 'subject', label: 'Asunto', bold: true, render: (v, r) => (
             <>
               <span className="mono text-muted">{r.folio}</span> {v}

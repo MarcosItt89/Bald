@@ -25,11 +25,9 @@ import StatusBadge from '@operalia/compartido/components/ui/StatusBadge.jsx'
 import ProgressBar from '@operalia/compartido/components/ui/ProgressBar.jsx'
 import Modal from '@operalia/compartido/components/ui/Modal.jsx'
 import { ErrorState } from '@operalia/compartido/components/ui/Feedback.jsx'
-import { usePlatformPath } from '../paths'
 
 export default function PlatformCompaniesPage() {
   const navigate = useNavigate()
-  const path = usePlatformPath()
   const toast = useToast()
   const { data: companies = [], loading, error, reload } = useAsync(getCompanies)
   const { data: health = [], error: healthError, reload: reloadHealth } = useAsync(getCompanyHealth)
@@ -60,7 +58,7 @@ export default function PlatformCompaniesPage() {
     <div className="page">
       <PageHeader icon={Globe} title="Empresas"
         subtitle={`${rows.length} empresas cliente${suspended ? ` · ${suspended} suspendida${suspended > 1 ? 's' : ''}` : ''}`}
-        actions={<Button size="sm" onClick={() => navigate(path('nueva'))}><Plus size={14} /> Nueva empresa</Button>} />
+        actions={<Button size="sm" onClick={() => navigate('/nueva')}><Plus size={14} /> Nueva empresa</Button>} />
       {error && <ErrorState error={error} onRetry={reload} />}
       {healthError && <ErrorState error={healthError} onRetry={reloadHealth} />}
       <Card flush>
@@ -87,9 +85,9 @@ export default function PlatformCompaniesPage() {
               <Button size="sm" variant="ghost" title="Link de acceso y QR" aria-label="Link de acceso y QR"
                 onClick={() => setLinkFor(r)}><QrCode size={14} /></Button>
               <Button size="sm" variant="ghost" title="Marca de la empresa" aria-label="Marca de la empresa"
-                onClick={() => navigate(path(`marca?empresa=${r.id}`))}><Palette size={14} /></Button>
+                onClick={() => navigate(`/marca?empresa=${r.id}`)}><Palette size={14} /></Button>
               <Button size="sm" variant="ghost" title="Tickets de esta empresa" aria-label="Tickets de esta empresa"
-                onClick={() => navigate(path(`soporte?empresa=${r.id}`))}><Headset size={14} /></Button>
+                onClick={() => navigate(`/soporte?empresa=${r.id}`)}><Headset size={14} /></Button>
               {r.status === 'active'
                 ? <Button size="sm" variant="outline" loading={busy === r.id} onClick={() => changeStatus(r, 'suspended')}><Ban size={14} /> Suspender</Button>
                 : <Button size="sm" variant="success" loading={busy === r.id} onClick={() => changeStatus(r, 'active')}><CirclePlay size={14} /> Reactivar</Button>}
@@ -100,7 +98,7 @@ export default function PlatformCompaniesPage() {
 
       <Modal open={!!detail} onClose={() => setDetail(null)} title={detail?.name} size="sm"
         footer={<>
-          <Button variant="ghost" onClick={() => navigate(path(`soporte?empresa=${detail.id}`))}><Headset size={14} /> Tickets</Button>
+          <Button variant="ghost" onClick={() => navigate(`/soporte?empresa=${detail.id}`)}><Headset size={14} /> Tickets</Button>
           <Button onClick={() => setDetail(null)}>Cerrar</Button>
         </>}>
         {detail?.health && <HealthDetail h={detail.health} />}

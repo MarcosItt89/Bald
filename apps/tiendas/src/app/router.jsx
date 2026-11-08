@@ -4,8 +4,8 @@
  * - Cada página se carga bajo demanda (React.lazy) → el primer render es más
  *   ligero y cada módulo descarga su código solo al abrirlo.
  * - Cada ruta declara el permiso que requiere (mismo formato que el menú).
- * - /plataforma/*: las páginas viven en apps/consola (Consola Operalia) y aquí
- *   se montan con base /plataforma mientras exista la sección (transitorio).
+ * - /plataforma/*: la plataforma de superadmin se movió a la Consola Operalia
+ *   (apps/consola); aquí solo queda un aviso público con el link.
  * - IMPORTANTE para Vercel: vercel.json redirige todas las rutas a index.html;
  *   sin eso, recargar /inventory daba 404.
  */
@@ -16,12 +16,12 @@ import { HomeRedirect, RequireAuth, RequireAccess } from './guards'
 import { P } from '../config/permissions'
 import RouteError from '../features/errors/RouteError'
 import { Loader } from '@operalia/compartido/components/ui/Feedback.jsx'
-import { PlatformBaseContext } from '@operalia/consola/paths.js'
 
 const page = (loader) => lazy(loader)
 
 const LoginPage            = page(() => import('../features/auth/LoginPage'))
 const CompanyLinkPage      = page(() => import('../features/auth/CompanyLinkPage'))
+const PlatformMovedPage    = page(() => import('../features/errors/PlatformMovedPage'))
 const ResetPasswordPage    = page(() => import('../features/auth/ResetPasswordPage'))
 const DashboardPage        = page(() => import('../features/dashboard/DashboardPage'))
 const AnnouncementsPage    = page(() => import('../features/announcements/AnnouncementsPage'))
@@ -57,14 +57,7 @@ const PermissionsPage      = page(() => import('../features/roles/PermissionsPag
 const SupportPage          = page(() => import('../features/support/SupportPage'))
 const TicketDetailPage     = page(() => import('../features/support/TicketDetailPage'))
 const NewTicketPage        = page(() => import('../features/support/NewTicketPage'))
-const PlatformCompaniesPage  = page(() => import('@operalia/consola/pages/PlatformCompaniesPage.jsx'))
-const NewCompanyPage         = page(() => import('@operalia/consola/pages/NewCompanyPage.jsx'))
-const PerformancePage        = page(() => import('@operalia/consola/pages/PerformancePage.jsx'))
 const BranchPerformancePage  = page(() => import('../features/reports/BranchPerformancePage'))
-const LeadsPage              = page(() => import('@operalia/consola/pages/LeadsPage.jsx'))
-const PlatformSupportPage    = page(() => import('@operalia/consola/pages/PlatformSupportPage.jsx'))
-const PlatformTicketPage     = page(() => import('@operalia/consola/pages/PlatformTicketPage.jsx'))
-const BrandPage              = page(() => import('@operalia/consola/pages/BrandPage.jsx'))
 const NotFoundPage         = page(() => import('../features/errors/NotFoundPage'))
 
 /** [ruta, componente, regla de acceso] — la regla usa { permission }, { anyOf } y/o { when }. */
@@ -104,13 +97,6 @@ const PROTECTED = [
   ['support',              SupportPage,            { anyOf: [P.CREATE_TICKETS, P.MANAGE_TICKETS] }],
   ['support/new',          NewTicketPage,          { anyOf: [P.CREATE_TICKETS] }],
   ['support/:id',          TicketDetailPage,       { anyOf: [P.CREATE_TICKETS, P.MANAGE_TICKETS] }],
-  ['plataforma',             PlatformCompaniesPage, { when: 'isPlatformAdmin' }],
-  ['plataforma/nueva',       NewCompanyPage,        { when: 'isPlatformAdmin' }],
-  ['plataforma/rendimiento', PerformancePage,       { when: 'isPlatformAdmin' }],
-  ['plataforma/prospectos',  LeadsPage,             { when: 'isPlatformAdmin' }],
-  ['plataforma/soporte',     PlatformSupportPage,   { when: 'isPlatformAdmin' }],
-  ['plataforma/soporte/:id', PlatformTicketPage,    { when: 'isPlatformAdmin' }],
-  ['plataforma/marca',       BrandPage,             { when: 'isPlatformAdmin' }],
 ]
 
 export const router = createBrowserRouter([
@@ -126,6 +112,13 @@ export const router = createBrowserRouter([
     errorElement: <RouteError />,
   },
   {
+    // La plataforma se movió a la Consola Operalia: aviso público con el link
+    // (sirve también a quien tenga guardado un enlace viejo).
+    path: '/plataforma/*',
+    element: <Suspense fallback={<Loader full />}><PlatformMovedPage /></Suspense>,
+    errorElement: <RouteError />,
+  },
+  {
     path: '/reset-password',
     element: <Suspense fallback={<Loader full />}><ResetPasswordPage /></Suspense>,
     errorElement: <RouteError />,
@@ -138,10 +131,7 @@ export const router = createBrowserRouter([
       { index: true, element: <HomeRedirect /> },
       ...PROTECTED.map(([path, Component, rule]) => ({
         path,
-        element: path.startsWith('plataforma')
-          // Páginas de la Consola Operalia montadas aquí bajo /plataforma (transitorio).
-          ? <RequireAccess item={rule}><PlatformBaseContext.Provider value="/plataforma"><Component /></PlatformBaseContext.Provider></RequireAccess>
-          : <RequireAccess item={rule}><Component /></RequireAccess>,
+        element: <RequireAccess item={rule}><Component /></RequireAccess>,
       })),
       { path: '*', element: <NotFoundPage /> },
     ],

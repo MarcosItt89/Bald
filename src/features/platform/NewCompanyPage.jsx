@@ -12,7 +12,7 @@ import { CirclePlus, Copy, RefreshCw } from 'lucide-react'
 import { useToast } from '../../hooks/useToast'
 import { linkLeadToCompany, provisionCompany } from '../../services/platformService'
 import { generateTempPassword } from '../../services/employeeService'
-import { normalizeCompanyCode } from '../../config/env'
+import { companyLink, normalizeCompanyCode } from '../../config/env'
 import PageHeader from '../../components/ui/PageHeader'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
@@ -67,7 +67,8 @@ export default function NewCompanyPage() {
     } catch (err) { toast.error(err.message) } finally { setSaving(false) }
   }
 
-  const appUrl = window.location.origin
+  // Link de la empresa: quien lo abre ya no escribe el código al entrar.
+  const appUrl = done ? companyLink(done.code) : window.location.origin
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(`Operalia: ${appUrl}\nEmpresa: ${done.code}\nUsuario: ${done.owner_username}\nContraseña temporal: ${done.password}`)
@@ -85,7 +86,7 @@ export default function NewCompanyPage() {
           <div className="form-stack">
             <p>Comparte estos datos con <strong>{done.ownerFullName}</strong>. Al entrar se le pedirá crear su propia contraseña; esta temporal no se vuelve a mostrar.</p>
             <div className="temp-credentials">
-              <span>App</span><code>{appUrl}</code>
+              <span>Link</span><code>{appUrl}</code>
               <span>Empresa</span><code>{done.code}</code>
               <span>Usuario</span><code>{done.owner_username}</code>
               <span>Contraseña temporal</span><code>{done.password}</code>

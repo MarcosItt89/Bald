@@ -8,6 +8,10 @@
  *
  * Si ya hay sesión, redirige al inicio (o a la página que se intentaba abrir).
  *
+ * Empresa recordada (link /e/<código> o un inicio anterior): el campo Empresa
+ * se oculta y se muestran el logo y el nombre de la empresa, con «¿No es tu
+ * empresa? Cambiar». Un correo real (con @) sigue entrando sin empresa.
+ *
  * Marca (0028): con el código de empresa escrito se pide su marca pública
  * (get_company_branding) y se muestran su logo, su nombre y su color. Mientras
  * tanto se usa la última marca guardada en el dispositivo.
@@ -34,6 +38,8 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [forgotOpen, setForgotOpen] = useState(false)
+  // Empresa ya conocida en este dispositivo → no se pide.
+  const [askCompany, setAskCompany] = useState(() => !readRememberedCompany())
   const [brand, setBrand] = useState(() => {
     const saved = readSavedBrand()
     return saved && saved.code === readRememberedCompany() ? saved : null
@@ -57,6 +63,8 @@ export default function LoginPage() {
   }, [brandCode, status])
   const shownBrand = brand && brand.code === company ? brand : null
   const logo = shownBrand?.logoUrl || '/logo.svg'
+  const companyName = shownBrand?.name ?? company
+  const changeCompany = () => { setCompany(''); setAskCompany(true) }
 
   const redirectTo = location.state?.from ?? '/'
   if (status === 'signedIn') return <Navigate to={redirectTo} replace />
@@ -99,8 +107,15 @@ export default function LoginPage() {
         <div className="login-form-card">
           <div className="login-form-header">
             <img src={logo} alt={shownBrand?.name ?? 'Operalia'} width="48" height="48" className="login-form-logo" />
-            <h2>Iniciar sesión</h2>
-            <p>Ingresa tu empresa, usuario y contraseña</p>
+            {askCompany ? (
+              <><h2>Iniciar sesión</h2><p>Ingresa tu empresa, usuario y contraseña</p></>
+            ) : (
+              <>
+                <h2 className="login-company-name">{companyName}</h2>
+                <p>Inicia sesión con tu usuario y contraseña</p>
+                <button type="button" className="link-btn login-change-company" onClick={changeCompany}>¿No es tu empresa? Cambiar</button>
+              </>
+            )}
           </div>
 
           {status === 'misconfigured' && (
@@ -114,17 +129,19 @@ export default function LoginPage() {
           )}
 
           <form onSubmit={handleSubmit} className="login-form">
-            <div className="form-group">
-              <label htmlFor="company" className="form-label">Empresa</label>
-              <input id="company" className="form-input" placeholder="ej. gatopelon" value={company}
-                onChange={(e) => setCompany(normalizeCompanyCode(e.target.value))} required={!username.includes('@')}
-                autoFocus={!company} autoComplete="organization" autoCapitalize="none" spellCheck={false} />
-            </div>
+            {askCompany && (
+              <div className="form-group">
+                <label htmlFor="company" className="form-label">Empresa</label>
+                <input id="company" className="form-input" placeholder="ej. gatopelon" value={company}
+                  onChange={(e) => setCompany(normalizeCompanyCode(e.target.value))} required={!username.includes('@')}
+                  autoFocus={!company} autoComplete="organization" autoCapitalize="none" spellCheck={false} />
+              </div>
+            )}
 
             <div className="form-group">
               <label htmlFor="username" className="form-label">Usuario</label>
               <input id="username" className="form-input" placeholder="ej. cajero" value={username}
-                onChange={(e) => setUsername(e.target.value)} required autoFocus={!!company}
+                onChange={(e) => setUsername(e.target.value)} required autoFocus={!askCompany}
                 autoComplete="username" autoCapitalize="none" spellCheck={false} />
             </div>
 
@@ -147,7 +164,7 @@ export default function LoginPage() {
             </Button>
           </form>
           <button type="button" className="link-btn login-forgot" onClick={() => setForgotOpen(true)}>¿Olvidaste tu contraseña?</button>
-          {forgotOpen && <ForgotPasswordModal open onClose={() => setForgotOpen(false)} initialCompany={company} initialValue={username} />}
+          {forgotOpen && <ForgotPasswordModal open onClose={() => setForgotOpen(false)} initialCompany={company} companyName={askCompany ? null : companyName} initialValue={username} />}
 
         </div>
       </div>

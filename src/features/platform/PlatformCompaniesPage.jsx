@@ -4,15 +4,20 @@
  * inicio de sesión, salud de la cuenta y avance de arranque (0025); suspende
  * o reactiva cada una (con confirmación). Suspendida: sus empleados pierden
  * el acceso, sin borrar datos. Clic en una fila: detalle de salud y arranque.
+ * Link de acceso (/e/<código>) de cada empresa: copiar, ver su QR e imprimirlo
+ * para la tienda; con él los empleados no escriben la empresa al entrar.
  */
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Globe, Plus, Ban, CirclePlay, Headset, CircleCheck, Circle } from 'lucide-react'
+import { Globe, Plus, Ban, CirclePlay, Headset, CircleCheck, Circle, QrCode, Copy, Printer } from 'lucide-react'
 import { useAsync } from '../../hooks/useAsync'
 import { useToast } from '../../hooks/useToast'
 import { getCompanies, getCompanyHealth, setCompanyStatus } from '../../services/platformService'
 import { ACCOUNT_HEALTH, COMPANY_STATUS } from '../../constants/status'
 import { formatDate, formatRelative } from '../../utils/formatters'
+import { companyLink } from '../../config/env'
+import { qrSvg } from '../checkpoints/printCheckpoints'
+import { printCompanyLink } from './printCompanyLink'
 import PageHeader from '../../components/ui/PageHeader'
 import Card from '../../components/ui/Card'
 import Table from '../../components/ui/Table'
@@ -33,6 +38,7 @@ export default function PlatformCompaniesPage() {
   }, [companies, health])
   const [busy, setBusy] = useState(null)
   const [detail, setDetail] = useState(null)
+  const [linkFor, setLinkFor] = useState(null)
   const suspended = rows.filter((c) => c.status === 'suspended').length
 
   const changeStatus = async (c, status) => {
@@ -59,7 +65,7 @@ export default function PlatformCompaniesPage() {
       <Card flush>
         <Table data={rows} loading={loading} onRowClick={setDetail} emptyText="Aún no hay empresas" columns={[
           { key: 'name', label: 'Empresa', bold: true, sortable: true, render: (v, r) => (
-            <>{v}<div className="cell-sub"><span className="mono">{r.code}</span> · {r.owner_name ? `${r.owner_name} (@${r.owner_username})` : 'sin propietario'}</div></>
+            <>{v}<div className="cell-sub"><span className="mono">/e/{r.code}</span> · {r.owner_name ? `${r.owner_name} (@${r.owner_username})` : 'sin propietario'}</div></>
           ) },
           { key: 'status', label: 'Estado', render: (v, r) => <><StatusBadge statusMap={COMPANY_STATUS} value={v} /><div className="cell-sub">Plan {r.plan}</div></> },
           { key: 'health', label: 'Salud', sortable: true, sortValue: (r) => ({ green: 0, yellow: 1, red: 2 })[r.health?.health] ?? 3,
@@ -77,6 +83,8 @@ export default function PlatformCompaniesPage() {
             render: (v, r) => <>{v ? formatRelative(v) : <span className="text-muted">Nunca</span>}<div className="cell-sub">Alta {formatDate(r.created_at)}</div></> },
           { key: 'actions', label: '', render: (_, r) => (
             <div className="row-actions" onClick={(e) => e.stopPropagation()}>
+              <Button size="sm" variant="ghost" title="Link de acceso y QR" aria-label="Link de acceso y QR"
+                onClick={() => setLinkFor(r)}><QrCode size={14} /></Button>
               <Button size="sm" variant="ghost" title="Tickets de esta empresa" aria-label="Tickets de esta empresa"
                 onClick={() => navigate(`/plataforma/soporte?empresa=${r.id}`)}><Headset size={14} /></Button>
               {r.status === 'active'
@@ -94,7 +102,37 @@ export default function PlatformCompaniesPage() {
         </>}>
         {detail?.health && <HealthDetail h={detail.health} />}
       </Modal>
+
+      {linkFor && <CompanyLinkModal company={linkFor} onClose={() => setLinkFor(null)} />}
     </div>
+  )
+}
+
+/** Link de acceso de la empresa: copiar, QR en pantalla e imprimible. */
+function CompanyLinkModal({ company, onClose }) {
+  const toast = useToast()
+  const url = companyLink(company.code)
+  const qr = useMemo(() => qrSvg(url), [url])
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(url); toast.success('Link copiado') } catch { toast.error('No se pudo copiar; selecciónalo y cópialo a mano') }
+  }
+  return (
+    <Modal open onClose={onClose} title={`Link de acceso · ${company.name}`} size="sm"
+      footer={<>
+        <Button variant="ghost" onClick={onClose}>Cerrar</Button>
+        <Button variant="outline" onClick={() => printCompanyLink({ name: company.name, url })}><Printer size={14} /> Imprimir QR</Button>
+      </>}>
+      <div className="form-stack">
+        <p className="text-muted text-sm">Con este link (o su QR) los empleados de {company.name} entran sin escribir la empresa: el dispositivo la recuerda.</p>
+        <div className="company-link-row">
+          <code className="company-link-url">{url}</code>
+          <Button size="sm" variant="outline" onClick={copy}><Copy size={14} /> Copiar</Button>
+        </div>
+        {/* SVG generado localmente por uqr a partir del link (sin datos de usuario). */}
+        <div className="company-link-qr" role="img" aria-label={`Código QR de ${url}`} dangerouslySetInnerHTML={{ __html: qr }} />
+        {company.status !== 'active' && <p className="form-error">La empresa está suspendida: el link mostrará «Empresa no encontrada» hasta reactivarla.</p>}
+      </div>
+    </Modal>
   )
 }
 

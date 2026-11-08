@@ -45,3 +45,9 @@ export const readRememberedCompany = () => {
 export const rememberCompany = (code) => {
   try { code ? localStorage.setItem(COMPANY_KEY, code) : localStorage.removeItem(COMPANY_KEY) } catch { /* modo privado */ }
 }
+
+/**
+ * Link de acceso de una empresa: https://<dominio>/e/<código>. Al abrirlo, el
+ * dispositivo recuerda la empresa y el empleado ya no la escribe (EmpresaLinkPage).
+ */
+export const companyLink = (code) => `${window.location.origin}/e/${normalizeCompanyCode(code)}`

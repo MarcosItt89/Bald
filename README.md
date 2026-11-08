@@ -80,14 +80,16 @@ Cada empresa tiene un **código** (por ejemplo `gatopelon`). En el login, el emp
 
 | Campo | Ejemplo | Nota |
 |---|---|---|
-| Empresa | `gatopelon` | Se recuerda en el dispositivo; se escribe una sola vez |
+| Empresa | `gatopelon` | Se recuerda en el dispositivo. Con el **link de la empresa** no se escribe nunca |
 | Usuario | `cajero` | Único dentro de su empresa (otra empresa puede tener su propio `cajero`) |
 | Contraseña | — | La primera es temporal y se cambia al entrar |
 
+- **Link de la empresa:** `https://<dominio>/e/<código>` (por ejemplo `/e/gatopelon`). Al abrirlo, o al escanear su QR, el dispositivo recuerda la empresa y aplica su marca. Después, el login solo pide usuario y contraseña y muestra el logo y el nombre de la empresa, con «¿No es tu empresa? Cambiar». Un código que no existe, o de una empresa suspendida, solo dice «Empresa no encontrada». El superadmin copia el link e imprime el QR en **Plataforma → Empresas** (botón QR de cada fila).
+- **App instalada (PWA):** el manifest usa `start_url: "."`. La app instalada abre en la raíz del sitio y usa la empresa que el link dejó recordada.
 - **Correo de Auth:** internamente Supabase Auth usa el correo `usuario@<código>.operalia.local` (`cajero@gatopelon.operalia.local`). Ese correo no existe; nadie lo escribe.
 - **Correo real:** si alguien tiene uno registrado (como el propietario), puede entrar con él sin escribir la empresa.
 - **Altas de personal:** las cuentas las crea un administrador o gerente desde **Configuración → Empleados** («Contraseña inicial» o «Crear cuenta»), con `admin_set_password`. El registro público de Supabase debe estar **desactivado**: Authentication → Sign In / Providers → «Allow new users to sign up».
-- **Contraseña olvidada:** «¿Olvidaste tu contraseña?» pide empresa y usuario y avisa a su gerente y al administrador de esa empresa. Responde igual exista o no el usuario.
+- **Contraseña olvidada:** «¿Olvidaste tu contraseña?» pide usuario (y empresa, si el dispositivo no la recuerda) y avisa a su gerente y al administrador de esa empresa. Responde igual exista o no el usuario.
 
 ## Marca de cada empresa
 
@@ -156,7 +158,7 @@ on conflict do nothing;
    - corre `seed_company_base`;
    - crea al propietario con su cuenta, que pedirá cambiar la contraseña;
    - registra el alta en auditoría.
-4. **Comparte los datos de acceso:** la tarjeta final trae la URL de la app, el código de empresa, el usuario y la contraseña temporal para copiar.
+4. **Comparte los datos de acceso:** la tarjeta final trae la URL de la app, el código de empresa, el usuario y la contraseña temporal para copiar. Para los empleados, en **Plataforma → Empresas** está el link `/e/<código>` y su QR para imprimir y pegar en la tienda.
 5. **Acompaña el arranque:** en Plataforma → Empresas, el **avance de arranque** marca 5 pasos:
    - sucursales creadas;
    - empleados con cuenta;

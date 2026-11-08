@@ -18,6 +18,7 @@ import { Loader } from '../components/ui/Feedback'
 const page = (loader) => lazy(loader)
 
 const LoginPage            = page(() => import('../features/auth/LoginPage'))
+const CompanyLinkPage      = page(() => import('../features/auth/CompanyLinkPage'))
 const ResetPasswordPage    = page(() => import('../features/auth/ResetPasswordPage'))
 const DashboardPage        = page(() => import('../features/dashboard/DashboardPage'))
 const AnnouncementsPage    = page(() => import('../features/announcements/AnnouncementsPage'))
@@ -111,6 +112,12 @@ export const router = createBrowserRouter([
   {
     path: '/login',
     element: <Suspense fallback={<Loader full />}><LoginPage /></Suspense>,
+    errorElement: <RouteError />,
+  },
+  {
+    // Link de acceso de la empresa (y su QR): recuerda la empresa y manda a /login.
+    path: '/e/:codigo',
+    element: <Suspense fallback={<Loader full />}><CompanyLinkPage /></Suspense>,
     errorElement: <RouteError />,
   },
   {

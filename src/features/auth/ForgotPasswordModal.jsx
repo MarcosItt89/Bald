@@ -1,3 +1,8 @@
+/**
+ * ForgotPasswordModal — pedir una contraseña nueva.
+ * companyName: si el login ya conoce la empresa (recordada o por link /e/…),
+ * no se vuelve a pedir; se muestra su nombre con «¿No es tu empresa? Cambiar».
+ */
 import { useState } from 'react'
 import { KeyRound, MailCheck, ShieldCheck } from 'lucide-react'
 import Modal from '../../components/ui/Modal'
@@ -6,8 +11,9 @@ import Button from '../../components/ui/Button'
 import { requestPasswordReset } from '../../services/employeeService'
 import { normalizeCompanyCode } from '../../config/env'
 
-export default function ForgotPasswordModal({ open, onClose, initialCompany = '', initialValue = '' }) {
+export default function ForgotPasswordModal({ open, onClose, initialCompany = '', companyName = null, initialValue = '' }) {
   const [company, setCompany] = useState(initialCompany)
+  const [askCompany, setAskCompany] = useState(!companyName || !initialCompany)
   const [value, setValue] = useState(initialValue)
   const isEmail = value.includes('@')
   const [sending, setSending] = useState(false)
@@ -44,8 +50,16 @@ export default function ForgotPasswordModal({ open, onClose, initialCompany = ''
       )}
       {!result && (
         <form id="forgot-form" className="form-stack" onSubmit={submit}>
-          <p className="text-muted text-sm">Escribe tu empresa y tu usuario. Si tu cuenta tiene un correo real, escríbelo para recibir un enlace.</p>
-          {!isEmail && (
+          <p className="text-muted text-sm">
+            {askCompany ? 'Escribe tu empresa y tu usuario.' : 'Escribe tu usuario.'} Si tu cuenta tiene un correo real, escríbelo para recibir un enlace.
+          </p>
+          {!isEmail && !askCompany && (
+            <div className="forgot-company">
+              <span>Empresa: <strong>{companyName}</strong></span>
+              <button type="button" className="link-btn" onClick={() => { setCompany(''); setAskCompany(true) }}>¿No es tu empresa? Cambiar</button>
+            </div>
+          )}
+          {!isEmail && askCompany && (
             <Input label="Empresa" required autoCapitalize="none" spellCheck={false} value={company}
               onChange={(e) => setCompany(normalizeCompanyCode(e.target.value))} placeholder="ej. gatopelon" />
           )}

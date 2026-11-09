@@ -9,8 +9,9 @@
  *   - Exportar a CSV.
  */
 import { useCallback, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useSearchParams } from 'react-router-dom'
-import { Download, Package, Plus } from 'lucide-react'
+import { Download, FileUp, Package, Plus } from 'lucide-react'
 import { useAuth } from '@operalia/compartido/hooks/useAuth.js'
 import { useAsync } from '@operalia/compartido/hooks/useAsync.js'
 import { useDebouncedValue } from '@operalia/compartido/hooks/useDebouncedValue.js'
@@ -32,7 +33,8 @@ import InventoryItemModal from './InventoryItemModal'
 import NewProductModal from './NewProductModal'
 
 export default function InventoryPage() {
-  const { branchFilter, hasPermission } = useAuth()
+  const { branchFilter, hasPermission, isCompanyScope } = useAuth()
+  const navigate = useNavigate()
   const canManage = hasPermission(P.MANAGE_INVENTORY)
   const [search, setSearch] = useState('')
   const [params] = useSearchParams()
@@ -84,6 +86,7 @@ export default function InventoryPage() {
         subtitle={loading ? 'Cargando…' : `${rows.length} productos · ${alerts} bajo mínimo`}
         actions={<>
           <Button variant="outline" size="sm" onClick={exportCsv} disabled={!rows.length}><Download size={14} /> CSV</Button>
+          {canManage && isCompanyScope && <Button variant="outline" size="sm" onClick={() => navigate('/inventory/import')}><FileUp size={14} /> Importar</Button>}
           {canManage && <Button size="sm" onClick={() => setCreating(true)}><Plus size={14} /> Nuevo producto</Button>}
         </>}
       />

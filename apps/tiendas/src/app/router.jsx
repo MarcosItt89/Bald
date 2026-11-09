@@ -27,6 +27,7 @@ const DashboardPage        = page(() => import('../features/dashboard/DashboardP
 const AnnouncementsPage    = page(() => import('../features/announcements/AnnouncementsPage'))
 const InventoryPage        = page(() => import('../features/inventory/InventoryPage'))
 const PriceCheckPage       = page(() => import('../features/inventory/PriceCheckPage'))
+const ImportProductsPage   = page(() => import('../features/inventory/ImportProductsPage'))
 const StockMovementsPage   = page(() => import('../features/inventory/StockMovementsPage'))
 const WastePage            = page(() => import('../features/waste/WastePage'))
 const CycleCountsPage      = page(() => import('../features/cycleCounts/CycleCountsPage'))
@@ -67,6 +68,7 @@ const PROTECTED = [
   ['inventory',            InventoryPage,          { permission: P.VIEW_INVENTORY }],
   ['inventory/prices',     PriceCheckPage,         { permission: P.VIEW_PRICES }],
   ['inventory/movements',  StockMovementsPage,     { permission: P.VIEW_INVENTORY }],
+  ['inventory/import',     ImportProductsPage,     { permission: P.MANAGE_INVENTORY, when: 'isCompanyScope' }],
   ['waste',                WastePage,              { permission: P.REGISTER_WASTE }],
   ['inventory/cycle-counts', CycleCountsPage,      { anyOf: [P.PERFORM_CYCLE_COUNTS, P.MANAGE_CYCLE_COUNTS] }],
   ['inventory/shelf-gaps', ShelfGapsPage,          { anyOf: [P.REPORT_SHELF_GAPS, P.MANAGE_SHELF_GAPS] }],

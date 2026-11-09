@@ -210,6 +210,10 @@ with checks(archivo, objeto, ok) as (values
   ('0029_consola_marca', 'platform_get_company_branding (Consola, solo superadmin)',
      to_regprocedure('public.platform_get_company_branding(uuid)') is not null
      and not has_function_privilege('anon', 'public.platform_get_company_branding(uuid)', 'execute')),
+  ('0030_importar_productos', 'import_products (CSV): invoker, solo authenticated',
+     to_regprocedure('public.import_products(uuid, jsonb, text)') is not null
+     and not (select prosecdef from pg_proc where oid = 'public.import_products(uuid, jsonb, text)'::regprocedure)
+     and not has_function_privilege('anon', 'public.import_products(uuid, jsonb, text)', 'execute')),
   ('demo/0019_empresas_demo', 'Gato Pelón, Súper La Luna y Mercado Sol con 4 sucursales',
      (select count(*) from public.companies c where c.code in ('gatopelon','superluna','mercadosol')
         and (select count(*) from public.branches b where b.company_id = c.id) = 4) = 3),

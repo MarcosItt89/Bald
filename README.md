@@ -202,6 +202,38 @@ on conflict do nothing;
 -- quitar: delete from public.platform_admins where user_id = '…';
 ```
 
+## Importar productos (CSV)
+
+**Inventario → Importar productos**: lo ven el propietario y los administradores (`manage_inventory` con alcance de empresa). Migración 0030.
+
+1. **Plantilla:** «Plantilla CSV» trae las columnas `sku, nombre, codigo_barras, departamento, categoria, marca, unidad, costo, precio, existencia, minimo, controla_caducidad` y dos ejemplos.
+2. **Archivo:** un CSV, o un Excel guardado como CSV. La página detecta sola:
+   - el separador: coma, punto y coma o tabulador;
+   - la codificación: UTF-8 o Latin-1;
+   - la coma decimal (`12,50`).
+
+   Un `.xlsx` no se lee: la página pide guardarlo como CSV.
+3. **Sucursal y modo:**
+   - **Sucursal:** recibe las existencias y los mínimos.
+   - **Modo:** crear y actualizar, solo crear o solo actualizar.
+   - **Clave:** el SKU; con él se decide si el producto es nuevo o se actualiza.
+   - **Celdas vacías:** al actualizar, el dato queda como estaba.
+4. **Vista previa:** errores por fila:
+   - precio u otro número inválido;
+   - unidad no permitida;
+   - departamento que no existe;
+   - SKU o código de barras repetido en el archivo;
+   - código de barras de otro producto;
+   - código de barras en notación científica.
+
+   Con errores no se importa: se corrige el archivo o se quitan esas filas.
+5. **Importación:**
+   - va en bloques de 500 con barra de progreso;
+   - al final, el resumen (creado, actualizado o error, con el motivo) se descarga en CSV.
+
+- **Existencia:** entra como movimiento `adjustment_in` «Carga inicial», así el kardex cuadra. Solo se carga si el producto aún no tiene movimientos en esa sucursal, de modo que repetir la misma importación no duplica nada.
+- **Seguridad:** `import_products` es **SECURITY INVOKER**. Cada escritura pasa por el RLS de productos, códigos, inventario y movimientos, y la función revisa además la sucursal y el rol.
+
 ## Cómo se da de alta una tienda
 
 1. **Prospecto** (opcional): regístralo en **Consola → Prospectos** (cadena, contacto, sucursales y giro) y avanza su estado: nuevo → demo → negociación → ganado.
@@ -236,7 +268,7 @@ Todo está en [supabase/](supabase/). Cada archivo es **re-ejecutable**: no dupl
 
 | Carpeta / archivo | Contenido |
 |---|---|
-| `migrations/` | Esquema: tablas, funciones, triggers, vistas, RLS, Storage y pg_cron (0001 → 0029) |
+| `migrations/` | Esquema: tablas, funciones, triggers, vistas, RLS, Storage y pg_cron (0001 → 0030) |
 | `seed/` | Datos **base** que la operación necesita (ver abajo) |
 | `demo/` | Datos **de ejemplo**, solo para pruebas (ver abajo) |
 | `pruebas/` | Pruebas que se corren a mano en el ambiente de pruebas (`aislamiento.sql`) |

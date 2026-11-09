@@ -653,3 +653,13 @@ a.heatmap-cell:hover { outline: 2px solid var(--text-primary); outline-offset: -
   border-radius: var(--radius-sm); padding: 8px 10px; user-select: all; }
 .company-link-qr { align-self: center; width: 200px; height: 200px; }
 .company-link-qr svg { width: 100%; height: 100%; display: block; }
+
+/* ─── Importar productos (Inventario → Importar) ───────────────────────── */
+.import-setup { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; align-items: end; margin-bottom: 8px; }
+.import-setup .btn { width: fit-content; }
+.import-info { margin: 12px 0 8px; overflow-wrap: anywhere; }
+.import-actions { margin: 12px 0 4px; flex-wrap: wrap; }
+.import-errors { margin: 0; padding-left: 16px; color: var(--danger); font-size: 12px; }
+.import-pager { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 10px; border-top: 1px solid var(--border); }
+.row-error td { background: var(--danger-bg); }
+.btn-disabled { opacity: .55; pointer-events: none; }

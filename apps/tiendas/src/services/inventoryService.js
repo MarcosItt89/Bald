@@ -101,3 +101,30 @@ export const reportPriceDifference = ({ productId, branchId, observedPrice, comm
     p_observed_price: observedPrice === '' ? null : Number(observedPrice),
     p_comment: comment || null,
   }))
+
+// ─── Importar productos (0030) ───────────────────────────────────────────────
+// Supabase devuelve máximo 1000 filas por consulta: se pide por páginas.
+async function allPages(build) {
+  const out = []
+  for (let from = 0; ; from += 1000) {
+    const page = await unwrap(build().range(from, from + 999))
+    out.push(...page)
+    if (page.length < 1000) return out
+  }
+}
+
+/** SKU existentes y dueño de cada código de barras, para validar el archivo antes de importar. */
+export async function getImportCatalog() {
+  const [products, barcodes] = await Promise.all([
+    allPages(() => supabase.from('products').select('sku').order('sku')),
+    allPages(() => supabase.from('product_barcodes').select('barcode, product:products(sku)').order('barcode')),
+  ])
+  return {
+    skus: new Map(products.map((p) => [p.sku, true])),
+    barcodeOwner: new Map(barcodes.map((b) => [b.barcode, b.product?.sku ?? '?'])),
+  }
+}
+
+/** Un bloque de filas (máx. 1000; la página manda 500). Devuelve [{ fila, sku, estado, motivo, producto_id }]. */
+export const importProducts = (branchId, rows, mode) =>
+  unwrap(supabase.rpc('import_products', { p_branch_id: branchId, p_rows: rows, p_mode: mode }))

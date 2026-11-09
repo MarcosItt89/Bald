@@ -13,7 +13,7 @@
 import {
   LayoutDashboard, Package, Tag, ArrowLeftRight, Truck, ClipboardCheck, ShoppingCart,
   DollarSign, Tags, CalendarClock, CheckSquare, Camera, ListTodo, Building, DoorOpen,
-  BarChart3, Building2, Layers, Users, Shield, KeyRound, LifeBuoy, History, FileSpreadsheet, Trash2, Map as MapIcon, QrCode, ClipboardList, PackageSearch, Megaphone, Palette, Activity,
+  BarChart3, Building2, Layers, Users, Shield, KeyRound, LifeBuoy, History, FileSpreadsheet, Trash2, Map as MapIcon, QrCode, ClipboardList, PackageSearch, Megaphone, Palette, Activity, FileUp,
 } from 'lucide-react'
 import { P } from './permissions'
 
@@ -31,6 +31,8 @@ export const NAV_GROUPS = [
       { icon: Package,        label: 'Inventario',          path: '/inventory',           permission: P.VIEW_INVENTORY },
       { icon: Tag,            label: 'Consulta de precios', path: '/inventory/prices',    permission: P.VIEW_PRICES },
       { icon: ArrowLeftRight, label: 'Movimientos',         path: '/inventory/movements', permission: P.VIEW_INVENTORY },
+      // Catálogo desde CSV (0030): propietario o administrador (alcance empresa).
+      { icon: FileUp,         label: 'Importar productos',  path: '/inventory/import',    permission: P.MANAGE_INVENTORY, when: 'isCompanyScope' },
       { icon: Trash2,         label: 'Mermas',              path: '/waste',               permission: P.REGISTER_WASTE },
       { icon: ClipboardList,  label: 'Conteo cíclico',      path: '/inventory/cycle-counts', anyOf: [P.PERFORM_CYCLE_COUNTS, P.MANAGE_CYCLE_COUNTS] },
       { icon: PackageSearch,  label: 'Huecos en anaquel',   path: '/inventory/shelf-gaps', anyOf: [P.REPORT_SHELF_GAPS, P.MANAGE_SHELF_GAPS] },

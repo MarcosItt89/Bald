@@ -16,6 +16,8 @@
 --      employee_permissions ni roles (el propietario sí: control positivo).
 --      Marca (0028): nadie cambia la marca ni el logo de OTRA empresa; en la
 --      propia, solo el propietario.
+--      Importar productos (0030): nadie importa a una sucursal de otra empresa,
+--      y una importación propia con SKU y códigos de Gato Pelón no los toca.
 --   4. Empresa suspendida: no lee nada (y no puede correr el mantenimiento de otra).
 --   5. request_password_reset responde igual exista o no el usuario, y no
 --      toca otra empresa.
@@ -375,7 +377,37 @@ begin
          'sql', 'select count(*)::int from public.get_company_branding(''gatopelon'')');
   v_orden := v_orden + 6;
 
-  -- ─── Ejecuta las pruebas 0 a 3, persona por persona ───────────────────────
+  -- Importar productos (0030): nunca a una sucursal de otra empresa, y una
+  -- importación a la sucursal propia no toca productos ni códigos de Gato Pelón
+  -- aunque traiga sus mismos SKU y códigos de barras.
+  v_probes := v_probes
+    || jsonb_build_object('orden', v_orden + 1, 'grupo', '4 importar', 'objeto', 'import_products a sucursal de Gato Pelón', 'accion', 'ejecutar',
+         'esperado', 'error', 'personas', '["sucursal","self","propietario","anon","admin"]'::jsonb,
+         'sql', format('select jsonb_array_length(public.import_products(%L::uuid, %L::jsonb, %L))',
+                       (select id from public.branches where company_id = v_gp order by code limit 1),
+                       jsonb_build_array(jsonb_build_object('fila', 2, 'sku', 'AISL-IMP-1', 'nombre', 'Intruso importado', 'existencia', '5')),
+                       'ambos'))
+    || jsonb_build_object('orden', v_orden + 2, 'grupo', '4 importar', 'objeto', 'import_products con SKU y código de Gato Pelón (sucursal propia)', 'accion', 'ejecutar a ciegas',
+         'esperado', 'deny', 'personas', '["propietario","admin"]'::jsonb, 'tipo', 'ciego',
+         'sql', format('select public.import_products(%L::uuid, %L::jsonb, %L)',
+                       (select id from public.branches where company_id = v_luna order by code limit 1),
+                       (select jsonb_build_array(jsonb_build_object('fila', 2, 'sku', p.sku, 'nombre', 'Intruso importado', 'precio', '1',
+                                                                    'codigo_barras', b.barcode, 'existencia', '7', 'minimo', '3'))
+                          from public.products p join public.product_barcodes b on b.product_id = p.id
+                         where p.company_id = v_gp limit 1),
+                       'ambos'),
+         'check', format('select (select count(*)::int from public.products where company_id = %1$L and name = %2$L)
+                               + (select count(*)::int from public.inventory_movements where company_id = %1$L and reason = %3$L)', v_gp, 'Intruso importado', 'Carga inicial'))
+    || jsonb_build_object('orden', v_orden + 3, 'grupo', '4 importar', 'objeto', 'import_products a su sucursal', 'accion', 'ejecutar',
+         'esperado', '{"propietario":"allow","admin":"allow","sucursal":"error","self":"error"}'::jsonb,
+         'personas', '["propietario","admin","sucursal","self"]'::jsonb,
+         'sql', format('select count(*)::int from jsonb_array_elements(public.import_products(%L::uuid, %L::jsonb, %L)) e where e->>%L <> %L',
+                       (select id from public.branches where company_id = v_luna order by code limit 1),
+                       jsonb_build_array(jsonb_build_object('fila', 2, 'sku', 'AISL-IMP-2', 'nombre', 'Prueba importada', 'existencia', '4')),
+                       'ambos', 'estado', 'error'));
+  v_orden := v_orden + 3;
+
+  -- ─── Ejecuta las pruebas 0 a 4, persona por persona ───────────────────────
   for pe in select * from jsonb_array_elements(v_personas) loop
     v_uid := (pe->>'uid')::uuid;
     perform set_config('request.jwt.claim.sub', '', true);

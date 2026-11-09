@@ -58,3 +58,44 @@ export const closeReceiving = (id) =>
 
 export const cancelReceiving = (id, reason) =>
   unwrap(supabase.from('receiving_orders').update({ status: 'cancelled', notes: reason }).eq('id', id))
+
+// ─── Recibo desde factura CFDI (0031) ────────────────────────────────────────
+/** Recibo no cancelado que ya tenga esta factura (de las sucursales visibles). */
+export async function findReceivingByUuid(uuid) {
+  const rows = await unwrap(supabase.from('receiving_orders').select('id, folio, status')
+    .eq('cfdi_uuid', uuid).neq('status', 'cancelled').limit(1))
+  return rows[0] ?? null
+}
+
+/** Claves de este proveedor ya emparejadas: Map(clave → producto). */
+export async function getSupplierCodes(supplierId) {
+  const rows = await unwrap(supabase.from('supplier_product_codes')
+    .select('supplier_code, product:products(id, sku, name, unit, status)').eq('supplier_id', supplierId))
+  return new Map(rows.filter((r) => r.product).map((r) => [r.supplier_code, r.product]))
+}
+
+/** Sugerencias para claves sin emparejar: la clave del proveedor coincide con un código de barras o un SKU. */
+export async function findProductsByCodes(codes) {
+  const found = new Map()
+  const unique = [...new Set(codes.filter(Boolean))]
+  for (let i = 0; i < unique.length; i += 100) {
+    const part = unique.slice(i, i + 100)
+    const [byBarcode, bySku] = await Promise.all([
+      unwrap(supabase.from('product_barcodes').select('barcode, product:products(id, sku, name, unit, status)').in('barcode', part)),
+      unwrap(supabase.from('products').select('id, sku, name, unit, status').in('sku', part)),
+    ])
+    bySku.forEach((p) => found.set(p.sku, { product: p, via: 'SKU' }))
+    byBarcode.forEach((b) => { if (b.product) found.set(b.barcode, { product: b.product, via: 'código de barras' }) })
+  }
+  return found
+}
+
+/**
+ * Crea el recibo EN CAPTURA con las partidas de la factura (esperado = cantidad,
+ * recibido = 0) y recuerda las claves marcadas. No mueve existencias.
+ * items: [{ product_id, cantidad, valor_unitario, clave, descripcion, unidad, recordar }]
+ */
+export const createReceivingFromCfdi = ({ branchId, supplierId, invoice, items, notes }) =>
+  unwrap(supabase.rpc('create_receiving_from_cfdi', {
+    p_branch_id: branchId, p_supplier_id: supplierId, p_invoice: invoice, p_items: items, p_notes: notes || null,
+  }))

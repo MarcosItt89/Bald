@@ -33,3 +33,7 @@ export const closeVisit = (id, employeeId) =>
   unwrap(supabase.from('supplier_visits')
     .update({ check_out_at: new Date().toISOString(), closed_by: employeeId })
     .eq('id', id).select().single())
+
+/** Proveedores de la empresa con ese RFC (sin distinguir mayúsculas). */
+export const findSuppliersByRfc = (rfc) =>
+  unwrap(supabase.from('suppliers').select('*').ilike('rfc', rfc.trim()).order('status').order('code'))

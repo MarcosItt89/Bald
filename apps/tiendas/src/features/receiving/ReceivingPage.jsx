@@ -3,11 +3,12 @@
  *
  * "Nuevo recibo" crea el encabezado (proveedor, factura/remisión y, si el
  * proveedor ya registró entrada en caseta, se liga su visita) y abre el
- * detalle para capturar productos.
+ * detalle para capturar productos. «Desde factura XML» lo arma con la
+ * factura CFDI del proveedor (ReceivingCfdiPage).
  */
 import { useCallback, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Plus, Truck } from 'lucide-react'
+import { FileCode2, Plus, Truck } from 'lucide-react'
 import { useAuth } from '@operalia/compartido/hooks/useAuth.js'
 import { useAsync } from '@operalia/compartido/hooks/useAsync.js'
 import { useToast } from '@operalia/compartido/hooks/useToast.js'
@@ -64,7 +65,10 @@ export default function ReceivingPage() {
   return (
     <div className="page">
       <PageHeader icon={Truck} title="Recibo de mercancía" subtitle="Entrada de producto de proveedores"
-        actions={<Button size="sm" onClick={() => setCreating(true)}><Plus size={14} /> Nuevo recibo</Button>} />
+        actions={<>
+          <Button size="sm" variant="outline" onClick={() => navigate('/receiving/cfdi')}><FileCode2 size={14} /> Desde factura XML</Button>
+          <Button size="sm" onClick={() => setCreating(true)}><Plus size={14} /> Nuevo recibo</Button>
+        </>} />
 
       <Tabs active={tab} onChange={setTab} tabs={[
         { key: 'in_progress', label: 'En captura' },

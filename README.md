@@ -234,6 +234,28 @@ on conflict do nothing;
 - **Existencia:** entra como movimiento `adjustment_in` «Carga inicial», así el kardex cuadra. Solo se carga si el producto aún no tiene movimientos en esa sucursal, de modo que repetir la misma importación no duplica nada.
 - **Seguridad:** `import_products` es **SECURITY INVOKER**. Cada escritura pasa por el RLS de productos, códigos, inventario y movimientos, y la función revisa además la sucursal y el rol.
 
+## Recibo desde la factura XML (CFDI 4.0)
+
+**Recibo de mercancía → «Desde factura XML»** (permiso `receive_products`). Migración 0031.
+
+1. **Leer la factura:** se sube el `.xml` que manda el proveedor junto con el PDF. El navegador lee el emisor (RFC y nombre), la serie y el folio, la fecha, el total, el UUID y cada concepto (`NoIdentificacion`, `Descripcion`, `Cantidad`, `ValorUnitario` y `Unidad`). Solo acepta facturas de ingreso timbradas: rechaza notas de crédito, XML sin UUID y XML que no sean CFDI.
+2. **Proveedor:** se busca por RFC en la empresa. Si no existe, quien tiene `manage_suppliers` lo da de alta ahí mismo con los datos del emisor.
+3. **Partidas:** cada concepto se empareja con un producto:
+   - **Recordado:** esa clave del proveedor ya se emparejó antes. Vive en la tabla `supplier_product_codes`, con RLS por empresa.
+   - **Sugerido:** la clave coincide con un código de barras o un SKU.
+   - **A mano:** con el buscador de productos.
+   - **Omitida:** fletes, servicios y lo que no entra al almacén.
+
+   Al crear el recibo se recuerda cada emparejamiento, así la próxima factura de ese proveedor se empareja sola. Un concepto sin `NoIdentificacion` se recuerda por su descripción.
+4. **Crear el recibo:**
+   - queda **en captura**, con esperado = cantidad de la factura y recibido = 0, más la clave, la descripción, la unidad y el costo del proveedor;
+   - el XML se guarda como evidencia del recibo.
+
+   Después, Recibo **cuenta** cada partida (botón «Contar») y cierra como siempre: las existencias se mueven solo al cerrar.
+
+- **Factura repetida:** una misma factura (UUID) no entra en dos recibos que no estén cancelados.
+- **Seguridad:** `create_receiving_from_cfdi` es SECURITY INVOKER, así que pasa por el RLS de recibos, partidas y claves. Un trigger impide ligar un proveedor o un producto de otra empresa en `supplier_product_codes`.
+
 ## Cómo se da de alta una tienda
 
 1. **Prospecto** (opcional): regístralo en **Consola → Prospectos** (cadena, contacto, sucursales y giro) y avanza su estado: nuevo → demo → negociación → ganado.
@@ -268,7 +290,7 @@ Todo está en [supabase/](supabase/). Cada archivo es **re-ejecutable**: no dupl
 
 | Carpeta / archivo | Contenido |
 |---|---|
-| `migrations/` | Esquema: tablas, funciones, triggers, vistas, RLS, Storage y pg_cron (0001 → 0030) |
+| `migrations/` | Esquema: tablas, funciones, triggers, vistas, RLS, Storage y pg_cron (0001 → 0031) |
 | `seed/` | Datos **base** que la operación necesita (ver abajo) |
 | `demo/` | Datos **de ejemplo**, solo para pruebas (ver abajo) |
 | `pruebas/` | Pruebas que se corren a mano en el ambiente de pruebas (`aislamiento.sql`) |

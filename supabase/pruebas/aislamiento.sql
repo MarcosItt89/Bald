@@ -18,6 +18,8 @@
 --      propia, solo el propietario.
 --      Importar productos (0030): nadie importa a una sucursal de otra empresa,
 --      y una importación propia con SKU y códigos de Gato Pelón no los toca.
+--      Recibo CFDI (0031): supplier_product_codes entra al barrido por tabla;
+--      nadie liga proveedor o producto de otra empresa ni crea recibos con ellos.
 --   4. Empresa suspendida: no lee nada (y no puede correr el mantenimiento de otra).
 --   5. request_password_reset responde igual exista o no el usuario, y no
 --      toca otra empresa.
@@ -85,7 +87,7 @@ declare
   v_errs      text[];
   v_todos     jsonb;
   -- Errores que vienen de la seguridad (RLS, privilegios, vistas no escribibles, validaciones de las RPC).
-  v_seguridad text := 'row-level security|permission denied|cannot (insert into|update|delete from) view|no tienes permiso|no autorizado|superadmin|Soporte Operalia';
+  v_seguridad text := 'row-level security|permission denied|cannot (insert into|update|delete from) view|no tienes permiso|no autorizado|superadmin|Soporte Operalia|deben ser de la misma empresa';
   v_user_self text;
   v_user_gp   text;
   v_user_own  text;
@@ -134,6 +136,13 @@ begin
   insert into storage.objects (bucket_id, name, owner_id)
   values ('evidence', v_gp || '/aislamiento/muestra.jpg',
           (select user_id::text from public.employees where company_id = v_gp and user_id is not null limit 1));
+
+  -- Una clave de proveedor de Gato Pelón (0031), para que el barrido por tabla
+  -- tenga qué intentar leer, cambiar y borrar.
+  insert into public.supplier_product_codes (company_id, supplier_id, supplier_code, product_id)
+  select v_gp, (select id from public.suppliers where company_id = v_gp order by code limit 1), 'AISL-CLAVE-GP',
+         (select id from public.products where company_id = v_gp order by sku limit 1)
+  on conflict do nothing;
 
   -- ─── 1. Pruebas por tabla y vista ──────────────────────────────────────────
   for rel in
@@ -407,7 +416,44 @@ begin
                        'ambos', 'estado', 'error'));
   v_orden := v_orden + 3;
 
-  -- ─── Ejecuta las pruebas 0 a 4, persona por persona ───────────────────────
+  -- Recibo desde factura CFDI (0031): claves de proveedor y recibo, nunca con
+  -- ids de Gato Pelón (proveedor, producto o sucursal).
+  v_probes := v_probes
+    || jsonb_build_object('orden', v_orden + 1, 'grupo', '5 cfdi', 'objeto', 'supplier_product_codes: su empresa con proveedor y producto de Gato Pelón', 'accion', 'insertar',
+         'esperado', 'deny', 'personas', '["sucursal","self","propietario","anon","admin"]'::jsonb, 'tipo', 'dml',
+         'sql', format('insert into public.supplier_product_codes (company_id, supplier_id, supplier_code, product_id) values (%L, %L, %L, %L)',
+                       v_luna, (select id from public.suppliers where company_id = v_gp order by code limit 1), 'AISL-CRUZADA',
+                       (select id from public.products where company_id = v_gp order by sku limit 1)))
+    || jsonb_build_object('orden', v_orden + 2, 'grupo', '5 cfdi', 'objeto', 'supplier_product_codes: su proveedor con producto de Gato Pelón', 'accion', 'insertar',
+         'esperado', 'deny', 'personas', '["sucursal","self","propietario","anon","admin"]'::jsonb, 'tipo', 'dml',
+         'sql', format('insert into public.supplier_product_codes (company_id, supplier_id, supplier_code, product_id) values (%L, %L, %L, %L)',
+                       v_luna, (select id from public.suppliers where company_id = v_luna order by code limit 1), 'AISL-CRUZADA-2',
+                       (select id from public.products where company_id = v_gp order by sku limit 1)))
+    || jsonb_build_object('orden', v_orden + 3, 'grupo', '5 cfdi', 'objeto', 'create_receiving_from_cfdi a sucursal de Gato Pelón', 'accion', 'ejecutar',
+         'esperado', 'error', 'personas', '["sucursal","self","propietario","anon","admin"]'::jsonb,
+         'sql', format('select count(*)::int from (select public.create_receiving_from_cfdi(%L::uuid, %L::uuid, %L::jsonb, %L::jsonb)) s',
+                       (select id from public.branches where company_id = v_gp order by code limit 1),
+                       (select id from public.suppliers where company_id = v_gp order by code limit 1),
+                       jsonb_build_object('uuid', 'AAAAAAAA-0000-4000-8000-000000000001', 'folio', 'AISL'),
+                       jsonb_build_array(jsonb_build_object('product_id', (select id from public.products where company_id = v_gp order by sku limit 1), 'cantidad', 1))))
+    || jsonb_build_object('orden', v_orden + 4, 'grupo', '5 cfdi', 'objeto', 'create_receiving_from_cfdi en su sucursal con proveedor y producto de Gato Pelón', 'accion', 'ejecutar',
+         'esperado', 'error', 'personas', '["sucursal","self","propietario","anon","admin"]'::jsonb,
+         'sql', format('select count(*)::int from (select public.create_receiving_from_cfdi(%L::uuid, %L::uuid, %L::jsonb, %L::jsonb)) s',
+                       (select id from public.branches where company_id = v_luna order by code limit 1),
+                       (select id from public.suppliers where company_id = v_gp order by code limit 1),
+                       jsonb_build_object('uuid', 'AAAAAAAA-0000-4000-8000-000000000002', 'folio', 'AISL'),
+                       jsonb_build_array(jsonb_build_object('product_id', (select id from public.products where company_id = v_gp order by sku limit 1), 'cantidad', 1, 'clave', 'X', 'recordar', true))))
+    || jsonb_build_object('orden', v_orden + 5, 'grupo', '5 cfdi', 'objeto', 'create_receiving_from_cfdi (su sucursal, su proveedor y producto)', 'accion', 'ejecutar',
+         'esperado', '{"propietario":"allow","admin":"allow"}'::jsonb, 'personas', '["propietario","admin"]'::jsonb,
+         'sql', format('select (public.create_receiving_from_cfdi(%L::uuid, %L::uuid, %L::jsonb, %L::jsonb)->>%L)::int',
+                       (select id from public.branches where company_id = v_luna order by code limit 1),
+                       (select id from public.suppliers where company_id = v_luna order by code limit 1),
+                       jsonb_build_object('uuid', 'AAAAAAAA-0000-4000-8000-000000000003', 'folio', 'AISL'),
+                       jsonb_build_array(jsonb_build_object('product_id', (select id from public.products where company_id = v_luna order by sku limit 1), 'cantidad', 2, 'clave', 'AISL-1', 'recordar', true)),
+                       'partidas'));
+  v_orden := v_orden + 5;
+
+  -- ─── Ejecuta las pruebas 0 a 5, persona por persona ───────────────────────
   for pe in select * from jsonb_array_elements(v_personas) loop
     v_uid := (pe->>'uid')::uuid;
     perform set_config('request.jwt.claim.sub', '', true);

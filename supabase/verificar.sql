@@ -214,6 +214,14 @@ with checks(archivo, objeto, ok) as (values
      to_regprocedure('public.import_products(uuid, jsonb, text)') is not null
      and not (select prosecdef from pg_proc where oid = 'public.import_products(uuid, jsonb, text)'::regprocedure)
      and not has_function_privilege('anon', 'public.import_products(uuid, jsonb, text)', 'execute')),
+  ('0031_recepcion_cfdi', 'supplier_product_codes con RLS y create_receiving_from_cfdi (invoker)',
+     to_regclass('public.supplier_product_codes') is not null
+     and (select relrowsecurity from pg_class where oid = 'public.supplier_product_codes'::regclass)
+     and to_regprocedure('public.create_receiving_from_cfdi(uuid, uuid, jsonb, jsonb, text)') is not null
+     and not (select prosecdef from pg_proc where oid = 'public.create_receiving_from_cfdi(uuid, uuid, jsonb, jsonb, text)'::regprocedure)),
+  ('0031_recepcion_cfdi', 'recibos con UUID de factura y bucket evidence acepta XML',
+     exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'receiving_orders' and column_name = 'cfdi_uuid')
+     and exists (select 1 from storage.buckets where id = 'evidence' and 'application/xml' = any (allowed_mime_types))),
   ('demo/0019_empresas_demo', 'Gato Pelón, Súper La Luna y Mercado Sol con 4 sucursales',
      (select count(*) from public.companies c where c.code in ('gatopelon','superluna','mercadosol')
         and (select count(*) from public.branches b where b.company_id = c.id) = 4) = 3),

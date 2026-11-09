@@ -4,28 +4,31 @@
  * Mientras está "En captura":
  *   - Agregar productos: cantidad esperada (factura), recibida, dañada, peso,
  *     lote y caducidad. La diferencia se calcula sola (recibida − esperada).
- *   - Adjuntar evidencias (foto de factura, mercancía, daños).
+ *   - Contar una partida ya cargada (las que vienen de la factura XML llegan
+ *     con lo esperado y recibido = 0): recibido, dañado, peso, lote y caducidad.
+ *   - Adjuntar evidencias (foto de factura, mercancía, daños; el XML de la factura).
  *   - Cerrar recibo (permiso close_receiving): la BD genera las entradas de
  *     inventario y los lotes de caducidad; ya no se puede editar.
  */
 import { useCallback, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, CheckCircle2, Plus, Trash2, XCircle } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, ClipboardCheck, Plus, Trash2, XCircle } from 'lucide-react'
 import { useAuth } from '@operalia/compartido/hooks/useAuth.js'
 import { useAsync } from '@operalia/compartido/hooks/useAsync.js'
 import { useToast } from '@operalia/compartido/hooks/useToast.js'
 import { P } from '../../config/permissions'
 import {
-  getReceivingOrder, addItem, deleteItem, closeReceiving, cancelReceiving,
+  getReceivingOrder, addItem, updateItem, deleteItem, closeReceiving, cancelReceiving,
 } from '../../services/receivingService'
 import { getEvidence } from '../../services/evidenceService'
 import { RECEIVING_STATUS } from '@operalia/compartido/constants/status.js'
-import { formatDate, formatDateTime, formatNumber } from '@operalia/compartido/utils/formatters.js'
+import { formatCurrency, formatDate, formatDateTime, formatNumber } from '@operalia/compartido/utils/formatters.js'
 import PageHeader from '@operalia/compartido/components/ui/PageHeader.jsx'
 import Card from '@operalia/compartido/components/ui/Card.jsx'
 import Table from '@operalia/compartido/components/ui/Table.jsx'
 import Button from '@operalia/compartido/components/ui/Button.jsx'
 import Input from '@operalia/compartido/components/ui/Input.jsx'
+import Modal from '@operalia/compartido/components/ui/Modal.jsx'
 import StatusBadge from '@operalia/compartido/components/ui/StatusBadge.jsx'
 import { ErrorState, Loader } from '@operalia/compartido/components/ui/Feedback.jsx'
 import ProductPicker from '../../components/domain/ProductPicker'
@@ -41,6 +44,7 @@ export default function ReceivingDetailPage() {
   const [product, setProduct] = useState(null)
   const [item, setItem] = useState(EMPTY_ITEM)
   const [busy, setBusy] = useState(false)
+  const [counting, setCounting] = useState(null) // partida que se está contando
 
   const load = useCallback(() => getReceivingOrder(id), [id])
   const { data, loading, error, reload } = useAsync(load)
@@ -85,18 +89,27 @@ export default function ReceivingDetailPage() {
   }), { expected: 0, received: 0, damaged: 0 })
 
   const columns = [
-    { key: 'product_name', label: 'Producto', bold: true, render: (v, r) => <>{v}<div className="cell-sub td-mono">{r.sku}</div></> },
+    { key: 'product_name', label: 'Producto', bold: true, render: (v, r) => (<>
+      {v}<div className="cell-sub td-mono">{r.sku}</div>
+      {r.supplier_code && <div className="cell-sub" title={r.supplier_description ?? ''}>Proveedor: <span className="td-mono">{r.supplier_code}</span>{r.supplier_unit ? ` · ${r.supplier_unit}` : ''}</div>}
+    </>) },
     { key: 'expected_qty', label: 'Esperado', align: 'right', render: (v) => formatNumber(v, 3) },
     { key: 'received_qty', label: 'Recibido', align: 'right', render: (v) => <strong>{formatNumber(v, 3)}</strong> },
     { key: 'difference', label: 'Diferencia', align: 'right',
       render: (v) => <span className={Number(v) < 0 ? 'td-danger' : Number(v) > 0 ? 'td-warning' : 'td-ok'}>{Number(v) > 0 ? '+' : ''}{formatNumber(v, 3)}</span> },
     { key: 'damaged_qty', label: 'Dañado', align: 'right', render: (v) => (Number(v) > 0 ? <span className="td-danger">{formatNumber(v, 3)}</span> : '0') },
     { key: 'weight_kg', label: 'Peso (kg)', align: 'right', render: (v) => (v == null ? '—' : formatNumber(v, 3)) },
+    ...(items.some((i) => i.unit_cost != null) ? [{ key: 'unit_cost', label: 'Costo factura', align: 'right',
+      render: (v) => (v == null ? '—' : formatCurrency(v)) }] : []),
     { key: 'lot', label: 'Lote' },
     { key: 'expiration_date', label: 'Caducidad', render: formatDate },
     ...(editable ? [{ key: 'actions', label: '', render: (_, r) => (
-      <button className="icon-btn icon-btn-danger" title="Quitar" disabled={busy}
-        onClick={() => run(() => deleteItem(r.id), 'Producto quitado')}><Trash2 size={14} /></button>
+      <div className="row-actions">
+        <Button size="sm" variant={Number(r.received_qty) === 0 ? 'primary' : 'ghost'} disabled={busy}
+          onClick={() => setCounting(r)}><ClipboardCheck size={14} /> Contar</Button>
+        <button className="icon-btn icon-btn-danger" title="Quitar" disabled={busy}
+          onClick={() => run(() => deleteItem(r.id), 'Producto quitado')}><Trash2 size={14} /></button>
+      </div>
     ) }] : []),
   ]
 
@@ -119,6 +132,10 @@ export default function ReceivingDetailPage() {
 
       <div className="detail-strip">
         <div><span>Factura / remisión</span><strong>{order.invoice_number || '—'}</strong></div>
+        {order.cfdi_uuid && (
+          <div><span>Factura CFDI</span><strong className="td-mono cfdi-uuid" title={order.cfdi_uuid}>{order.cfdi_uuid}</strong>
+            <small>{order.invoice_date ? formatDateTime(order.invoice_date) : ''}{order.invoice_total != null ? ` · ${formatCurrency(order.invoice_total)}` : ''}</small></div>
+        )}
         <div><span>Inicio</span><strong>{formatDateTime(order.created_at)}</strong></div>
         <div><span>Productos</span><strong>{items.length}</strong></div>
         <div><span>Esperado</span><strong>{formatNumber(totals.expected, 3)}</strong></div>
@@ -171,6 +188,48 @@ export default function ReceivingDetailPage() {
           onUploaded={evidence.reload} label="Foto de factura / mercancía" />}>
         <EvidenceGallery items={evidence.data ?? []} showStatus />
       </Card>
+      {counting && (
+        <CountItemModal item={counting} onClose={() => setCounting(null)} busy={busy}
+          onSave={(values) => run(async () => { await updateItem(counting.id, values); setCounting(null) }, 'Partida contada')} />
+      )}
     </div>
+  )
+}
+
+/** Contar una partida ya cargada: lo recibido (y dañado, peso, lote, caducidad). */
+function CountItemModal({ item, onClose, onSave, busy }) {
+  const [form, setForm] = useState({
+    received_qty: Number(item.received_qty) ? String(item.received_qty) : '',
+    damaged_qty: Number(item.damaged_qty) ? String(item.damaged_qty) : '',
+    weight_kg: item.weight_kg ?? '', lot: item.lot ?? '', expiration_date: item.expiration_date ?? '',
+  })
+  const tooMuchDamage = Number(form.damaged_qty) > Number(form.received_qty)
+  const submit = (e) => {
+    e.preventDefault()
+    // expected_qty va siempre: el servicio pone 0 si falta.
+    onSave({ ...form, expected_qty: item.expected_qty })
+  }
+  return (
+    <Modal open onClose={onClose} title={`Contar · ${item.product_name}`} size="sm"
+      footer={<><Button variant="ghost" onClick={onClose}>Cancelar</Button>
+        <Button type="submit" form="count-item" loading={busy} disabled={form.received_qty === '' || tooMuchDamage}>Guardar</Button></>}>
+      <form id="count-item" className="form-stack" onSubmit={submit}>
+        <p className="text-sm">Esperado (factura): <strong>{formatNumber(item.expected_qty, 3)}</strong>
+          {item.supplier_description && <span className="text-muted"> · {item.supplier_description}</span>}</p>
+        <div className="form-grid">
+          <Input label="Recibido" type="number" min="0" step="0.001" required autoFocus value={form.received_qty}
+            onChange={(e) => setForm({ ...form, received_qty: e.target.value })} />
+          <Input label="Dañado" type="number" min="0" step="0.001" value={form.damaged_qty}
+            onChange={(e) => setForm({ ...form, damaged_qty: e.target.value })} />
+          <Input label="Peso (kg)" type="number" min="0" step="0.001" value={form.weight_kg}
+            onChange={(e) => setForm({ ...form, weight_kg: e.target.value })} />
+          <Input label="Lote" value={form.lot} onChange={(e) => setForm({ ...form, lot: e.target.value })} />
+        </div>
+        <Input label="Caducidad" type="date" value={form.expiration_date}
+          onChange={(e) => setForm({ ...form, expiration_date: e.target.value })}
+          hint="Si la capturas, el lote aparecerá en Caducidades al cerrar" />
+        {tooMuchDamage && <p className="hint-box hint-danger">Lo dañado no puede ser mayor que lo recibido.</p>}
+      </form>
+    </Modal>
   )
 }

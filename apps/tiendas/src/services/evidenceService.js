@@ -1,5 +1,5 @@
 /**
- * Servicio de evidencias (fotos / PDF) en Supabase Storage.
+ * Servicio de evidencias (fotos / PDF / XML de factura) en Supabase Storage.
  *
  * Cada evidencia son dos cosas:
  *   1. El archivo en el bucket privado "evidence":
@@ -22,11 +22,13 @@ export async function uploadEvidence({ file, companyId, entityType, entityId = n
   if (toUpload.size > 10 * 1024 * 1024) throw new Error('El archivo supera 10 MB.')
 
   const ext = (toUpload.name.split('.').pop() || 'bin').toLowerCase()
+  // Algunos navegadores no le ponen tipo al .xml de una factura.
+  const contentType = toUpload.type || (ext === 'xml' ? 'application/xml' : 'application/octet-stream')
   const month = new Date().toISOString().slice(0, 7)
   const path = `${companyId}/${entityType}/${month}/${crypto.randomUUID()}.${ext}`
 
   const { error: upErr } = await supabase.storage.from(BUCKET)
-    .upload(path, toUpload, { contentType: toUpload.type, upsert: false })
+    .upload(path, toUpload, { contentType, upsert: false })
   if (upErr) throw new Error(`No se pudo subir el archivo: ${upErr.message}`)
 
   try {
@@ -36,7 +38,7 @@ export async function uploadEvidence({ file, companyId, entityType, entityId = n
       branch_id: branchId,
       storage_path: path,
       file_name: file.name,
-      mime_type: toUpload.type,
+      mime_type: contentType,
       size_bytes: toUpload.size,
       description: description || null,
     }).select().single())

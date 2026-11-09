@@ -33,6 +33,7 @@ const WastePage            = page(() => import('../features/waste/WastePage'))
 const CycleCountsPage      = page(() => import('../features/cycleCounts/CycleCountsPage'))
 const ShelfGapsPage        = page(() => import('../features/shelfGaps/ShelfGapsPage'))
 const ReceivingPage        = page(() => import('../features/receiving/ReceivingPage'))
+const ReceivingCfdiPage    = page(() => import('../features/receiving/ReceivingCfdiPage'))
 const ReceivingDetailPage  = page(() => import('../features/receiving/ReceivingDetailPage'))
 const ReceivingSummaryPage = page(() => import('../features/receiving/ReceivingSummaryPage'))
 const SuppliersPage        = page(() => import('../features/suppliers/SuppliersPage'))
@@ -73,6 +74,7 @@ const PROTECTED = [
   ['inventory/cycle-counts', CycleCountsPage,      { anyOf: [P.PERFORM_CYCLE_COUNTS, P.MANAGE_CYCLE_COUNTS] }],
   ['inventory/shelf-gaps', ShelfGapsPage,          { anyOf: [P.REPORT_SHELF_GAPS, P.MANAGE_SHELF_GAPS] }],
   ['receiving',            ReceivingPage,          { permission: P.RECEIVE_PRODUCTS }],
+  ['receiving/cfdi',       ReceivingCfdiPage,      { permission: P.RECEIVE_PRODUCTS }],
   ['receiving/summary',    ReceivingSummaryPage,   { anyOf: [P.RECEIVE_PRODUCTS, P.VIEW_REPORTS] }],
   ['receiving/:id',        ReceivingDetailPage,    { anyOf: [P.RECEIVE_PRODUCTS, P.VIEW_REPORTS] }],
   ['suppliers',            SuppliersPage,          { permission: P.VIEW_SUPPLIERS }],

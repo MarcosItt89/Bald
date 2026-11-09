@@ -663,3 +663,19 @@ a.heatmap-cell:hover { outline: 2px solid var(--text-primary); outline-offset: -
 .import-pager { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 10px; border-top: 1px solid var(--border); }
 .row-error td { background: var(--danger-bg); }
 .btn-disabled { opacity: .55; pointer-events: none; }
+
+/* ─── Recibo desde factura XML (CFDI) ──────────────────────────────────── */
+.cfdi-drop { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; padding: 24px 8px; }
+.cfdi-drop > svg { color: var(--text-muted); }
+.detail-strip small { display: block; font-size: 11px; color: var(--text-muted); overflow-wrap: anywhere; }
+.cfdi-uuid { font-size: 12px; overflow-wrap: anywhere; }
+.cfdi-lines { display: flex; flex-direction: column; }
+.cfdi-line { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px 20px; padding: 12px 16px; border-top: 1px solid var(--border); }
+.cfdi-line:first-child { border-top: none; }
+.cfdi-line-concept { display: flex; flex-direction: column; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.cfdi-line-product { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
+.cfdi-line-product .form-group { width: 100%; margin: 0; }
+.cfdi-line-pending { background: var(--warning-bg); }
+.cfdi-line-omit { opacity: .6; }
+.cfdi-actions { justify-content: flex-end; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+@media (max-width: 700px) { .cfdi-line { grid-template-columns: 1fr; } }

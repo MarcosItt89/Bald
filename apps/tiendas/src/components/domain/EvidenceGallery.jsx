@@ -14,11 +14,12 @@ import StatusBadge from '@operalia/compartido/components/ui/StatusBadge.jsx'
 export function EvidenceThumb({ evidence, showStatus = false, onSelect, size = 72 }) {
   const load = useCallback(() => getSignedUrl(evidence.storage_path), [evidence.storage_path])
   const { data: url, error } = useAsync(load)
-  const isPdf = evidence.mime_type === 'application/pdf'
+  // PDF y XML (factura CFDI) se muestran como documento.
+  const isDoc = evidence.mime_type === 'application/pdf' || /xml/.test(evidence.mime_type ?? '')
 
   const body = error ? <ImageOff size={20} />
     : !url ? <span className="spinner-sm spinner-dark" />
-    : isPdf ? <FileText size={24} />
+    : isDoc ? <FileText size={24} />
     : <img src={url} alt={evidence.file_name ?? 'Evidencia'} loading="lazy" />
 
   const handleClick = (e) => {

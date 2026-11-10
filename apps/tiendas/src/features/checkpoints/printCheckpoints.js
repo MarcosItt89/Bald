@@ -4,7 +4,6 @@
  */
 import { escapeHtml, qrSvg } from '@operalia/compartido/utils/qr.js'
 
-export { qrSvg }
 
 export function printCheckpoints(points) {
   const win = window.open('', '_blank', 'width=900,height=700')

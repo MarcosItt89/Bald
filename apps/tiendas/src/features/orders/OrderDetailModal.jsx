@@ -7,14 +7,14 @@ import { useCallback, useState } from 'react'
 import { useAuth } from '@operalia/compartido/hooks/useAuth.js'
 import { useAsync } from '@operalia/compartido/hooks/useAsync.js'
 import { useToast } from '@operalia/compartido/hooks/useToast.js'
-import { P } from '../../config/permissions'
-import { getOrderItems, changeOrderStatus } from '../../services/orderService'
 import { ORDER_STATUS, ORDER_TRANSITIONS, PRIORITY } from '@operalia/compartido/constants/status.js'
 import { formatDateTime, formatNumber } from '@operalia/compartido/utils/formatters.js'
 import Modal from '@operalia/compartido/components/ui/Modal.jsx'
 import Button from '@operalia/compartido/components/ui/Button.jsx'
 import { Textarea } from '@operalia/compartido/components/ui/Input.jsx'
 import StatusBadge from '@operalia/compartido/components/ui/StatusBadge.jsx'
+import { P } from '../../config/permissions'
+import { getOrderItems, changeOrderStatus } from '../../services/orderService'
 
 export default function OrderDetailModal({ order, onClose, onChanged }) {
   const { hasPermission, profile } = useAuth()

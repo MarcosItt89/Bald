@@ -1,11 +1,12 @@
 import { Camera, ClipboardCheck, Clock, ListTodo, Package, Truck } from 'lucide-react'
-import { getSummaryReport } from '../../../services/reportService'
 import { TASK_AGE_BUCKETS } from '@operalia/compartido/constants/status.js'
 import StatCard from '@operalia/compartido/components/ui/StatCard.jsx'
 import LineChart from '@operalia/compartido/components/charts/LineChart.jsx'
 import BarList from '@operalia/compartido/components/charts/BarList.jsx'
-import { complianceTone, fmtHours, fmtPct, shortDate, useReport, useReportLink } from '../reportFilters'
+import { complianceTone, fmtHours, fmtPct, shortDate } from '@operalia/compartido/reports/reportFormat.js'
 import { Delta, ReportSection, ReportState } from '@operalia/compartido/reports/reportUi.jsx'
+import { getSummaryReport } from '../../../services/reportService'
+import { useReport, useReportLink } from '../reportFilters'
 
 const AGE_TONE = { lt1: 'primary', '1-3': 'primary', '4-7': 'warn', gt7: 'bad' }
 
@@ -55,10 +56,10 @@ export default function SummaryTab({ filters }) {
         )}
         {data?.openTasksByAge && (
           <ReportSection title="Tareas abiertas por antigüedad" subtitle="Pendientes y en progreso hoy"
-            csv={{ name: 'tareas-antiguedad', rows: TASK_AGE_BUCKETS.map((b) => ({ label: b.label, count: data.openTasksByAge[b.key]?.length ?? 0 })),
+            csv={{ name: 'tareas-antiguedad', rows: TASK_AGE_BUCKETS.map((b) => ({ label: b.label, count: data.openTasksByAge[b.key] ?? 0 })),
               columns: [{ key: 'label', label: 'Antigüedad' }, { key: 'count', label: 'Tareas' }] }}>
             <BarList items={TASK_AGE_BUCKETS.map((b) => ({
-              key: b.key, label: b.label, value: data.openTasksByAge[b.key]?.length ?? 0, tone: AGE_TONE[b.key],
+              key: b.key, label: b.label, value: data.openTasksByAge[b.key] ?? 0, tone: AGE_TONE[b.key],
               to: link('/tasks', { tab: 'all', age: b.key, dept }),
             }))} />
           </ReportSection>

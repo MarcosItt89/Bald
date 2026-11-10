@@ -8,7 +8,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Headset, MapPin } from 'lucide-react'
 import { useAsync } from '@operalia/compartido/hooks/useAsync.js'
 import { useDebouncedValue } from '@operalia/compartido/hooks/useDebouncedValue.js'
-import { getCompanies, getPlatformTickets } from '../services/platformService'
 import { PRIORITY, TICKET_CATEGORY, TICKET_STATUS } from '@operalia/compartido/constants/status.js'
 import { formatRelative } from '@operalia/compartido/utils/formatters.js'
 import PageHeader from '@operalia/compartido/components/ui/PageHeader.jsx'
@@ -20,6 +19,7 @@ import SearchInput from '@operalia/compartido/components/ui/SearchInput.jsx'
 import StatusBadge from '@operalia/compartido/components/ui/StatusBadge.jsx'
 import { ErrorState } from '@operalia/compartido/components/ui/Feedback.jsx'
 import { BlocksBadge, DueBadge } from '@operalia/compartido/support/supportUi.jsx'
+import { getCompanies, getPlatformTickets } from '../services/platformService'
 
 const TABS = [
   { key: 'active', label: 'Abiertos' },

@@ -95,7 +95,7 @@ Para quitarlo: `delete from public.platform_admins where user_id = '…';`.
 - **Instaladores:**
   - `pendiente.sql` corre dos veces sin errores;
   - `verificar.sql`, con 88 filas, sale en verde salvo pg_cron, que no existe en la copia local;
-  - `instalacion-limpia.sql` sigue dejando solo a `chee` y `marcos.yeran.guerra`.
+  - `instalacion-limpia.sql` sigue dejando solo al propietario `chee` (el administrador con correo real se da de alta a mano desde 0032; ver README).
 - **Actualización:** sobre una base con el instalador anterior, aplicar 0022, 0023, 0024 y `seed/` no duplica plantillas ni preguntas.
 - **`provision_company`:**
   - Rechaza a un no superadmin, al SQL Editor, un código inválido, un código repetido y una contraseña de 7 caracteres.

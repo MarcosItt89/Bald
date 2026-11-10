@@ -7,8 +7,8 @@
  *   RouterProvider → rutas (src/app/router.jsx)
  */
 import { RouterProvider } from 'react-router-dom'
-import AuthProvider from '../contexts/AuthProvider'
 import ToastProvider from '@operalia/compartido/contexts/ToastProvider.jsx'
+import AuthProvider from '../contexts/AuthProvider'
 import { router } from './router'
 
 export default function App() {

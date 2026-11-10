@@ -3,13 +3,14 @@
  * Calificación de cada sucursal por día para comparar tiendas.
  * Con más de 31 días se agrupa por semana (promedio de los días con datos).
  */
-import { getManagementChecklistReport, weekStart } from '../../../services/reportService'
 import BarList from '@operalia/compartido/components/charts/BarList.jsx'
 import Heatmap from '@operalia/compartido/components/charts/Heatmap.jsx'
 import { Loader, ErrorState } from '@operalia/compartido/components/ui/Feedback.jsx'
 import { addDaysISO } from '@operalia/compartido/utils/formatters.js'
-import { complianceTone, fmtPct, shortDate, useReport, useReportLink } from '../reportFilters'
+import { complianceTone, fmtPct, shortDate } from '@operalia/compartido/reports/reportFormat.js'
 import { ReportSection } from '@operalia/compartido/reports/reportUi.jsx'
+import { getManagementChecklistReport, weekStart } from '../../../services/reportService'
+import { useReport, useReportLink } from '../reportFilters'
 
 const mean = (vals) => {
   const v = vals.filter((x) => x != null)

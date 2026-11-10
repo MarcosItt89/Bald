@@ -97,3 +97,8 @@ export async function getCompanyBrandingById(companyId) {
   const rows = await unwrap(supabase.rpc('platform_get_company_branding', { p_company_id: companyId }))
   return rows?.[0] ?? null
 }
+
+// ─── Bitácora (0032) ─────────────────────────────────────────────────────────
+/** Eventos de plataforma: alta, suspension, reactivacion, marca y soporte (más recientes primero). */
+export const getAuditLog = ({ companyId, event, limit = 300 } = {}) =>
+  unwrap(supabase.rpc('platform_audit_log', { p_limit: limit, p_company_id: companyId || null, p_event: event || null }))

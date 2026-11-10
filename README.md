@@ -170,7 +170,7 @@ El editor es el mismo componente en las dos apps: `packages/compartido/src/brand
 - **Entrada:** su propio login con correo y contraseña. Después pide `get_my_profile()`: si la cuenta no es superadmin (`is_platform_admin`), ve «Sin acceso» y nada más.
 - **Seguridad:** la de verdad está en la base. Cada función `platform_*` valida superadmin por su cuenta.
 - **Correo:** el superadmin necesita un correo registrado en su cuenta de Auth. Si solo tiene el interno, entra con él: `usuario@<código>.operalia.local`.
-- **Páginas:** Empresas, Rendimiento, Marca, Prospectos, Nueva empresa y Soporte de tiendas.
+- **Páginas:** Empresas, Rendimiento, Marca, Prospectos, Nueva empresa, Soporte de tiendas y Bitácora.
 
 **Páginas de la Consola:**
 - **Empresas:** estado, salud de la cuenta (verde, amarillo o rojo), avance de arranque, y suspender o reactivar. Desde cada fila: link de acceso con QR y Marca.
@@ -179,6 +179,7 @@ El editor es el mismo componente en las dos apps: `packages/compartido/src/brand
 - **Prospectos:** cadenas interesadas y su estado.
 - **Nueva empresa.**
 - **Soporte de tiendas:** tickets de todas las empresas. Las respuestas llegan firmadas «Soporte Operalia».
+- **Bitácora:** altas, suspensiones y reactivaciones de empresas, cambios de marca hechos por un superadmin y respuestas de soporte, de todas las empresas. Filtra por empresa y evento y se descarga en CSV. La lee `platform_audit_log()` (0032), que valida superadmin.
 
 **Rendimiento en cascada:** el mismo tablero de métricas en cada nivel, cada quien con lo que le toca. Las métricas son las mismas en todos los niveles (migración 0027).
 
@@ -193,14 +194,23 @@ Para el detalle de una sucursal (por departamento, checklist o producto) está *
 
 **Superadmin en la app de tiendas:** ve el menú de su empresa como cualquier empleado. Abajo trae «Plataforma → Consola Operalia», que abre la Consola en otra pestaña. La plataforma ya no está en la app de tiendas.
 
-Para agregar o quitar un superadmin, en el SQL Editor; la persona necesita un empleado con cuenta:
+### Nombrar al superadmin real
+
+Ninguna semilla de producción crea superadmins ni cuentas con datos personales. El superadmin de pruebas (usuario demo `gatopelon`, en `demo/0010_superadmin_demo.sql`) **no** existe en `instalacion-limpia.sql`, y `verificar.sql` marca ❌ si algún superadmin es una cuenta demo.
+
+1. **Empleado:** la persona necesita un empleado activo en una empresa, por ejemplo en Gato Pelón. Dalo de alta en Configuración → Empleados con su **correo real** en «Correo».
+2. **Cuenta:** créale la cuenta en Supabase → Authentication → Users → «Add user», con ese mismo correo y una contraseña que solo ella conozca. El trigger `on_auth_user_created` la liga sola al empleado por el correo.
+3. **Superadmin:** en el SQL Editor, cambia `<CORREO>` por su correo:
 ```sql
 insert into public.platform_admins (user_id)
-select e.user_id from public.employees e join public.companies c on c.id = e.company_id
-where c.code = 'gatopelon' and e.username = 'USUARIO' and e.user_id is not null
+select id from auth.users where lower(email) = lower('<CORREO>')
 on conflict do nothing;
--- quitar: delete from public.platform_admins where user_id = '…';
+-- Quitar a alguien:
+-- delete from public.platform_admins where user_id = (select id from auth.users where lower(email) = lower('<CORREO>'));
 ```
+4. **Comprobar:** corre `verificar.sql`; las filas «seguridad» deben salir ✅. Después la persona entra a la Consola con su correo.
+
+El **administrador con correo real** de una tienda se da de alta igual (pasos 1 y 2), sin el paso 3.
 
 ## Importar productos (CSV)
 
@@ -290,7 +300,7 @@ Todo está en [supabase/](supabase/). Cada archivo es **re-ejecutable**: no dupl
 
 | Carpeta / archivo | Contenido |
 |---|---|
-| `migrations/` | Esquema: tablas, funciones, triggers, vistas, RLS, Storage y pg_cron (0001 → 0031) |
+| `migrations/` | Esquema: tablas, funciones, triggers, vistas, RLS, Storage y pg_cron (0001 → 0033) |
 | `seed/` | Datos **base** que la operación necesita (ver abajo) |
 | `demo/` | Datos **de ejemplo**, solo para pruebas (ver abajo) |
 | `pruebas/` | Pruebas que se corren a mano en el ambiente de pruebas (`aislamiento.sql`) |
@@ -303,13 +313,13 @@ Todo está en [supabase/](supabase/). Cada archivo es **re-ejecutable**: no dupl
 | | Base: `seed/` y `seed_company_base(empresa)` | Demo: `demo/` y `seed_company_demo(empresa)` |
 |---|---|---|
 | **Para qué** | Lo mínimo para que una empresa opere | Probar y enseñar la app con datos |
-| **Contenido** | Catálogo de permisos. Gato Pelón con sus 3 sucursales y su propietario `chee`, sin cuenta. Por empresa: departamentos, zonas, roles con sus permisos, temas de soporte, plantillas de checklist y puntos QR | Usuarios con contraseña `prueba123` y una 4.ª sucursal de Gato Pelón. Productos, inventario, proveedores, tareas y tickets. Súper La Luna (`superluna`) y Mercado Sol (`mercadosol`), con 4 sucursales cada una. 30 días de historial en las 3 empresas, prospectos de ejemplo |
+| **Contenido** | Catálogo de permisos. Gato Pelón con sus 3 sucursales y su propietario `chee`, sin cuenta. Por empresa: departamentos, zonas, roles con sus permisos, temas de soporte, plantillas de checklist y puntos QR. **Sin datos personales ni superadmin** | Usuarios con contraseña `prueba123` (el demo `gatopelon` es superadmin de pruebas) y una 4.ª sucursal de Gato Pelón. Productos, inventario, proveedores, tareas y tickets. Súper La Luna (`superluna`) y Mercado Sol (`mercadosol`), con 4 sucursales cada una. 30 días de historial en las 3 empresas, prospectos de ejemplo |
 | **Producción** | Sí: va en `instalacion-limpia.sql` | **Nunca** |
 | **Empresa nueva** | `provision_company` corre `seed_company_base` | Solo si se marca «Cargar datos de ejemplo» y `demo/` está instalado |
 
 - **Datos base de una empresa:** van en `seed_company_base` (migración 0023), no en un archivo suelto de `seed/`.
 - **Usuarios demo:** están listados al inicio de `demo/0009_usuarios_y_demo.sql` (Gato Pelón) y de `demo/0019_empresas_demo.sql` (Súper La Luna y Mercado Sol).
-- **Si un ambiente con demo se vuelve real,** cambia esas contraseñas.
+- **Si un ambiente con demo se vuelve real,** cambia esas contraseñas y quita al superadmin demo. `verificar.sql` lo revisa: «sin cuentas demo en una base sin demo» y «ningún superadmin es una cuenta demo».
 
 ### Instalar
 
@@ -317,10 +327,10 @@ Todo está en [supabase/](supabase/). Cada archivo es **re-ejecutable**: no dupl
 2. **Ejecuta el instalador:** abre el SQL Editor, pega el instalador y ejecútalo:
    - `instalacion-limpia.sql` para producción;
    - `pendiente.sql` para pruebas.
-3. **Comprueba la instalación:** ejecuta `verificar.sql`. Con la instalación limpia, las filas `demo/…` salen ❌ y es lo esperado.
+3. **Comprueba la instalación:** ejecuta `verificar.sql`. Con la instalación limpia, las filas `demo/…` salen ❌ y es lo esperado. En pruebas con demo, «ningún superadmin es una cuenta demo» sale ❌ a propósito.
 4. **Producción:**
-   - El propietario de Gato Pelón (`chee`) queda pre-registrado **sin cuenta**: créasela con `admin_set_password` (ver el diario 2026-10-27) y entra con empresa `gatopelon`. La cuenta con correo real de `seed/0010_propietario.sql` se liga sola al crearla en Supabase Auth.
-   - Agrega al menos un superadmin (arriba) y da de alta al resto del personal desde la app.
+   - El propietario de Gato Pelón (`chee`) queda pre-registrado **sin cuenta**: créasela con `admin_set_password` (ver el diario 2026-10-27) y entra con empresa `gatopelon`.
+   - Nombra al superadmin real («Nombrar al superadmin real», arriba) y da de alta al resto del personal desde la app.
 
 Para actualizar una base que ya existe, basta con ejecutar las migraciones y semillas nuevas en orden (o el instalador completo, que es re-ejecutable). Cada cambio dice qué correr en su diario.
 

@@ -2,7 +2,9 @@
 -- OPERALIA · VERIFICAR INSTALACIÓN (solo lectura, no modifica nada)
 -- Pégalo en el SQL Editor. Cada fila dice si el objeto existe y, si falta,
 -- qué archivo ejecutar. Con instalacion-limpia.sql (sin demo) las filas
--- «demo/…» salen ❌ y es lo esperado.
+-- «demo/…» salen ❌ y es lo esperado. En pruebas CON demo, «ningún superadmin
+-- es una cuenta demo» sale ❌ a propósito (el superadmin demo tiene contraseña
+-- conocida); en producción ninguna fila «seguridad» debe salir ❌.
 -- =============================================================================
 with checks(archivo, objeto, ok) as (values
   ('0001-0007 (pendiente.sql)', 'tabla employees con username',
@@ -171,7 +173,7 @@ with checks(archivo, objeto, ok) as (values
               and table_name = 'support_ticket_messages' and column_name = 'is_platform')
      and exists (select 1 from information_schema.columns where table_schema = 'public'
               and table_name = 'v_support_ticket_messages' and column_name = 'is_platform')),
-  ('platform_admins: ver diario 2026-10-29', 'hay al menos un superadmin de la plataforma',
+  ('README → «Nombrar al superadmin real»', 'hay al menos un superadmin de la plataforma',
      exists (select 1 from public.platform_admins pa join auth.users u on u.id = pa.user_id)),
   ('0025_plataforma_rendimiento', 'rendimiento de tiendas (platform_company_kpis, platform_company_trend, platform_checklist_heatmap)',
      to_regprocedure('public.platform_company_kpis(date, date)') is not null
@@ -222,6 +224,30 @@ with checks(archivo, objeto, ok) as (values
   ('0031_recepcion_cfdi', 'recibos con UUID de factura y bucket evidence acepta XML',
      exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'receiving_orders' and column_name = 'cfdi_uuid')
      and exists (select 1 from storage.buckets where id = 'evidence' and 'application/xml' = any (allowed_mime_types))),
+  ('0032_seguridad_bitacora', 'request_password_reset con tope por empresa y platform_audit_log (solo superadmin)',
+     position('c_max_hour' in pg_get_functiondef('public.request_password_reset(text, text)'::regprocedure)) > 0
+     and to_regprocedure('public.platform_audit_log(integer, uuid, text)') is not null
+     and not has_function_privilege('anon', 'public.platform_audit_log(integer, uuid, text)', 'execute')),
+  ('0033_estadisticas_sql', 'Estadísticas en la base: report_summary … report_support (invoker)',
+     (select count(*) from pg_proc where pronamespace = 'public'::regnamespace and not prosecdef
+        and proname in ('report_summary', 'report_checklists', 'report_management', 'report_tasks',
+                        'report_inventory', 'report_temperatures', 'report_receiving', 'report_support')) = 8),
+  -- Seguridad: en una base SIN demo (no existen Súper La Luna ni Mercado Sol) no
+  -- debe haber cuentas demo con la contraseña de prueba. Si sale ❌: cámbiales la
+  -- contraseña o bórralas en Authentication → Users.
+  ('seguridad: borra o cambia la contraseña de esas cuentas', 'sin cuentas demo (contraseña prueba123) en una base sin demo',
+     exists (select 1 from public.companies where code in ('superluna', 'mercadosol'))
+     or not exists (select 1 from auth.users u
+                    where lower(u.email) ~ '@(gatopelon|superluna|mercadosol)\.operalia\.local$'
+                      and u.encrypted_password is not null and u.encrypted_password <> ''
+                      and u.encrypted_password = extensions.crypt('prueba123', u.encrypted_password))),
+  -- Seguridad: ningún superadmin puede ser una cuenta demo (contraseña conocida).
+  -- En el ambiente de pruebas con demo/0010_superadmin_demo.sql sale ❌ a propósito.
+  ('seguridad: quita ese usuario de platform_admins (README → superadmin real)', 'ningún superadmin es una cuenta demo',
+     not exists (select 1 from public.platform_admins pa join auth.users u on u.id = pa.user_id
+                 where lower(u.email) ~ '@(gatopelon|superluna|mercadosol)\.operalia\.local$'
+                   and u.encrypted_password is not null and u.encrypted_password <> ''
+                   and u.encrypted_password = extensions.crypt('prueba123', u.encrypted_password))),
   ('demo/0019_empresas_demo', 'Gato Pelón, Súper La Luna y Mercado Sol con 4 sucursales',
      (select count(*) from public.companies c where c.code in ('gatopelon','superluna','mercadosol')
         and (select count(*) from public.branches b where b.company_id = c.id) = 4) = 3),

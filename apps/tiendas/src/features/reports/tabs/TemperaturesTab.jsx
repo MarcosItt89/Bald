@@ -1,14 +1,15 @@
 import { useNavigate } from 'react-router-dom'
 import { Clock, Siren, Thermometer, TriangleAlert } from 'lucide-react'
-import { getTemperatureReport } from '../../../services/reportService'
 import { TASK_STATUS } from '@operalia/compartido/constants/status.js'
 import { formatDateTime } from '@operalia/compartido/utils/formatters.js'
 import StatCard from '@operalia/compartido/components/ui/StatCard.jsx'
 import StatusBadge from '@operalia/compartido/components/ui/StatusBadge.jsx'
 import Table from '@operalia/compartido/components/ui/Table.jsx'
 import LineChart from '@operalia/compartido/components/charts/LineChart.jsx'
-import { fmtHours, fmtPct, shortDate, useReport, useReportLink } from '../reportFilters'
+import { fmtHours, fmtPct, shortDate } from '@operalia/compartido/reports/reportFormat.js'
 import { ReportSection, ReportState } from '@operalia/compartido/reports/reportUi.jsx'
+import { getTemperatureReport } from '../../../services/reportService'
+import { useReport, useReportLink } from '../reportFilters'
 
 const range = (e) => `${e.min ?? '−∞'} a ${e.max ?? '∞'} ${e.unit}`
 

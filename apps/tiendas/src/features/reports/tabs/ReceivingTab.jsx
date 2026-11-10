@@ -1,10 +1,11 @@
 import { DollarSign, FileWarning, Tags, Timer, Truck } from 'lucide-react'
-import { getReceivingReport } from '../../../services/reportService'
 import StatCard from '@operalia/compartido/components/ui/StatCard.jsx'
 import BarList from '@operalia/compartido/components/charts/BarList.jsx'
 import Donut from '@operalia/compartido/components/charts/Donut.jsx'
-import { complianceTone, fmtPct, useReport, useReportLink } from '../reportFilters'
+import { complianceTone, fmtPct } from '@operalia/compartido/reports/reportFormat.js'
 import { ReportSection, ReportState } from '@operalia/compartido/reports/reportUi.jsx'
+import { getReceivingReport } from '../../../services/reportService'
+import { useReport, useReportLink } from '../reportFilters'
 
 export default function ReceivingTab({ filters }) {
   const { data, loading, error, reload } = useReport(getReceivingReport, filters)

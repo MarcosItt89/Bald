@@ -6,10 +6,10 @@
 import { useState } from 'react'
 import { QrCode, ScanLine } from 'lucide-react'
 import { useToast } from '@operalia/compartido/hooks/useToast.js'
-import { startRunWithCheckpoint } from '../../services/checkpointService'
 import Modal from '@operalia/compartido/components/ui/Modal.jsx'
 import Button from '@operalia/compartido/components/ui/Button.jsx'
 import Input from '@operalia/compartido/components/ui/Input.jsx'
+import { startRunWithCheckpoint } from '../../services/checkpointService'
 import BarcodeScanner from '../inventory/BarcodeScanner'
 
 export default function CheckpointScanModal({ run, onClose, onStarted }) {

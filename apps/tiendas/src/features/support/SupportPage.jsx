@@ -9,8 +9,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { LifeBuoy, Plus, MapPin } from 'lucide-react'
 import { useAuth } from '@operalia/compartido/hooks/useAuth.js'
 import { useAsync } from '@operalia/compartido/hooks/useAsync.js'
-import { P } from '../../config/permissions'
-import { getTickets } from '../../services/supportService'
 import { PRIORITY, TICKET_CATEGORY, TICKET_STATUS } from '@operalia/compartido/constants/status.js'
 import FilterChip from '@operalia/compartido/components/ui/FilterChip.jsx'
 import { formatRelative } from '@operalia/compartido/utils/formatters.js'
@@ -22,6 +20,8 @@ import Button from '@operalia/compartido/components/ui/Button.jsx'
 import StatusBadge from '@operalia/compartido/components/ui/StatusBadge.jsx'
 import { ErrorState } from '@operalia/compartido/components/ui/Feedback.jsx'
 import { BlocksBadge, DueBadge } from '@operalia/compartido/support/supportUi.jsx'
+import { P } from '../../config/permissions'
+import { getTickets } from '../../services/supportService'
 
 const AGENT_TABS = [
   { key: 'unassigned', label: 'Sin asignar', filter: () => ({ status: 'active', unassigned: true }) },

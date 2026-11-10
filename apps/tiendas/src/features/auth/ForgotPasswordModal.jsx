@@ -8,8 +8,8 @@ import { KeyRound, MailCheck, ShieldCheck } from 'lucide-react'
 import Modal from '@operalia/compartido/components/ui/Modal.jsx'
 import Input from '@operalia/compartido/components/ui/Input.jsx'
 import Button from '@operalia/compartido/components/ui/Button.jsx'
-import { requestPasswordReset } from '../../services/employeeService'
 import { normalizeCompanyCode } from '@operalia/compartido/config/env.js'
+import { requestPasswordReset } from '../../services/employeeService'
 
 export default function ForgotPasswordModal({ open, onClose, initialCompany = '', companyName = null, initialValue = '' }) {
   const [company, setCompany] = useState(initialCompany)

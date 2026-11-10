@@ -155,7 +155,6 @@
 .price-card-meta { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--text-secondary); margin: 8px 0; }
 
 /* Checklists v2 */
-.cl-section-overdue { border-color: #fca5a5; }
 div.cl-run-card { background: #fff; }
 div.cl-run-card .cl-run-info { cursor: pointer; flex: 1; }
 .cl-run-reopened { border-color: #fde68a; }
@@ -455,6 +454,9 @@ a.heatmap-cell:hover { outline: 2px solid var(--text-primary); outline-offset: -
 .report-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
 .report-period { font-size: 12px; color: var(--text-muted); margin: -4px 0 12px; }
 .report-kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+/* Rendimiento: exactamente 8 tarjetas → 4×2; en pantallas medianas, 2×4 (abajo, ≤600px, ya es 2 columnas). */
+.report-kpis-8 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 1100px) { .report-kpis-8 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .report-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
 .report-grid > .report-wide { grid-column: 1 / -1; }
 .report-grid .card { min-width: 0; }

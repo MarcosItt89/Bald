@@ -10,8 +10,8 @@
  */
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@operalia/compartido/hooks/useAuth.js'
-import { canAccess } from '../config/navigation'
 import { Loader } from '@operalia/compartido/components/ui/Feedback.jsx'
+import { canAccess } from '../config/navigation'
 import ForbiddenPage from '../features/errors/ForbiddenPage'
 import AccountProblemPage from '../features/errors/AccountProblemPage'
 

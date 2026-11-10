@@ -8,11 +8,11 @@ import { Shield } from 'lucide-react'
 import { useAuth } from '@operalia/compartido/hooks/useAuth.js'
 import { useAsync } from '@operalia/compartido/hooks/useAsync.js'
 import { useToast } from '@operalia/compartido/hooks/useToast.js'
-import { ROLE_SCOPES } from '../../config/permissions'
-import { getRoles, getPermissionsCatalog, setRolePermission } from '../../services/roleService'
 import PageHeader from '@operalia/compartido/components/ui/PageHeader.jsx'
 import Badge from '@operalia/compartido/components/ui/Badge.jsx'
 import { ErrorState, Loader } from '@operalia/compartido/components/ui/Feedback.jsx'
+import { ROLE_SCOPES } from '../../config/permissions'
+import { getRoles, getPermissionsCatalog, setRolePermission } from '../../services/roleService'
 
 export default function RolesPage() {
   const { canManageRoles: canEdit } = useAuth()

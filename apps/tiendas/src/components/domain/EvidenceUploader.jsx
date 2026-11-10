@@ -10,8 +10,8 @@ import { useRef, useState } from 'react'
 import { Camera } from 'lucide-react'
 import { useAuth } from '@operalia/compartido/hooks/useAuth.js'
 import { useToast } from '@operalia/compartido/hooks/useToast.js'
-import { uploadEvidence } from '../../services/evidenceService'
 import Button from '@operalia/compartido/components/ui/Button.jsx'
+import { uploadEvidence } from '../../services/evidenceService'
 
 export default function EvidenceUploader({
   entityType, entityId = null, branchId = null, onUploaded, label = 'Adjuntar foto',

@@ -11,11 +11,11 @@
  */
 import { lazy, Suspense } from 'react'
 import { createBrowserRouter } from 'react-router-dom'
+import { Loader } from '@operalia/compartido/components/ui/Feedback.jsx'
 import MainLayout from '../components/layout/MainLayout'
 import { HomeRedirect, RequireAuth, RequireAccess } from './guards'
 import { P } from '../config/permissions'
 import RouteError from '../features/errors/RouteError'
-import { Loader } from '@operalia/compartido/components/ui/Feedback.jsx'
 
 const page = (loader) => lazy(loader)
 

@@ -14,11 +14,6 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@operalia/compartido/hooks/useAuth.js'
 import { useAsync } from '@operalia/compartido/hooks/useAsync.js'
-import { P } from '../../config/permissions'
-import {
-  getDashboardSummary, getTodayRuns, getMyOpenTasks, getCriticalStock,
-} from '../../services/dashboardService'
-import { getUnreadAnnouncements } from '../../services/announcementService'
 import { CHECKLIST_RUN_STATUS, INVENTORY_STATUS, PRIORITY } from '@operalia/compartido/constants/status.js'
 import { formatDate, formatNumber, formatTime, todayISO } from '@operalia/compartido/utils/formatters.js'
 import PageHeader from '@operalia/compartido/components/ui/PageHeader.jsx'
@@ -27,6 +22,11 @@ import Card from '@operalia/compartido/components/ui/Card.jsx'
 import StatusBadge from '@operalia/compartido/components/ui/StatusBadge.jsx'
 import { ErrorState } from '@operalia/compartido/components/ui/Feedback.jsx'
 import Badge from '@operalia/compartido/components/ui/Badge.jsx'
+import { P } from '../../config/permissions'
+import {
+  getDashboardSummary, getTodayRuns, getMyOpenTasks, getCriticalStock,
+} from '../../services/dashboardService'
+import { getUnreadAnnouncements } from '../../services/announcementService'
 
 /** Definición de tarjetas: clave del resumen → presentación. */
 const CARDS = [

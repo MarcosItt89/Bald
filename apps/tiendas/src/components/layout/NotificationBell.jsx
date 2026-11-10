@@ -10,10 +10,10 @@ import { useNavigate } from 'react-router-dom'
 import { Bell, CheckCheck } from 'lucide-react'
 import { useAuth } from '@operalia/compartido/hooks/useAuth.js'
 import { useAsync } from '@operalia/compartido/hooks/useAsync.js'
+import { formatRelative } from '@operalia/compartido/utils/formatters.js'
 import {
   getNotifications, markAllAsRead, markAsRead, subscribeToNotifications,
 } from '../../services/notificationService'
-import { formatRelative } from '@operalia/compartido/utils/formatters.js'
 
 export default function NotificationBell() {
   const { profile } = useAuth()

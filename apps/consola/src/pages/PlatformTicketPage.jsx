@@ -9,7 +9,6 @@ import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, CircleCheck, Lock, MapPin, RefreshCw, RotateCcw, Send } from 'lucide-react'
 import { useAsync } from '@operalia/compartido/hooks/useAsync.js'
 import { useToast } from '@operalia/compartido/hooks/useToast.js'
-import { getPlatformTicket, replyPlatformTicket } from '../services/platformService'
 import { COMPANY_STATUS, PRIORITY, TICKET_CATEGORY, TICKET_STATUS, toOptions } from '@operalia/compartido/constants/status.js'
 import { formatDateTime } from '@operalia/compartido/utils/formatters.js'
 import PageHeader from '@operalia/compartido/components/ui/PageHeader.jsx'
@@ -19,6 +18,7 @@ import Select from '@operalia/compartido/components/ui/Select.jsx'
 import StatusBadge from '@operalia/compartido/components/ui/StatusBadge.jsx'
 import { ErrorState, Loader } from '@operalia/compartido/components/ui/Feedback.jsx'
 import { BlocksBadge, DueBadge } from '@operalia/compartido/support/supportUi.jsx'
+import { getPlatformTicket, replyPlatformTicket } from '../services/platformService'
 
 export default function PlatformTicketPage() {
   const { id } = useParams()

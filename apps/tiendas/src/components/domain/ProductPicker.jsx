@@ -11,9 +11,9 @@ import { useCallback, useState } from 'react'
 import { Package, X } from 'lucide-react'
 import { useAsync } from '@operalia/compartido/hooks/useAsync.js'
 import { useDebouncedValue } from '@operalia/compartido/hooks/useDebouncedValue.js'
-import { searchProducts } from '../../services/inventoryService'
 import { formatCurrency } from '@operalia/compartido/utils/formatters.js'
 import SearchInput from '@operalia/compartido/components/ui/SearchInput.jsx'
+import { searchProducts } from '../../services/inventoryService'
 
 export default function ProductPicker({ value, onSelect, label = 'Producto', autoFocus = false }) {
   const [query, setQuery] = useState('')

@@ -8,10 +8,9 @@
 import { NavLink } from 'react-router-dom'
 import { ExternalLink } from 'lucide-react'
 import { useAuth } from '@operalia/compartido/hooks/useAuth.js'
-import { NAV_GROUPS, canAccess } from '../../config/navigation'
 import { getInitials } from '@operalia/compartido/utils/formatters.js'
 import { env } from '@operalia/compartido/config/env.js'
-
+import { NAV_GROUPS, canAccess } from '../../config/navigation'
 
 function NavGroup({ group, items, onNavigate }) {
   return (

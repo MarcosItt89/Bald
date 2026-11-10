@@ -4,14 +4,14 @@ import { ArrowLeft, Camera, CircleCheck, CircleHelp, MapPin, Send, TriangleAlert
 import { useAuth } from '@operalia/compartido/hooks/useAuth.js'
 import { useAsync } from '@operalia/compartido/hooks/useAsync.js'
 import { useToast } from '@operalia/compartido/hooks/useToast.js'
-import { createTicket, getTopics } from '../../services/supportService'
-import { NAV_GROUPS } from '../../config/navigation'
-import { uploadEvidence } from '../../services/evidenceService'
 import PageHeader from '@operalia/compartido/components/ui/PageHeader.jsx'
 import Card from '@operalia/compartido/components/ui/Card.jsx'
 import Button from '@operalia/compartido/components/ui/Button.jsx'
 import Input, { Textarea } from '@operalia/compartido/components/ui/Input.jsx'
 import { ErrorState, Loader } from '@operalia/compartido/components/ui/Feedback.jsx'
+import { createTicket, getTopics } from '../../services/supportService'
+import { NAV_GROUPS } from '../../config/navigation'
+import { uploadEvidence } from '../../services/evidenceService'
 import { topicIcon } from './supportTopics'
 
 const OTHER = { id: null, code: 'other', name: 'Otro problema', category: 'other', self_help: null }

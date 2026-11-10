@@ -9,11 +9,11 @@
  */
 import { Suspense, useState } from 'react'
 import { Outlet } from 'react-router-dom'
+import { useAuth } from '@operalia/compartido/hooks/useAuth.js'
+import { Loader } from '@operalia/compartido/components/ui/Feedback.jsx'
 import Sidebar from './Sidebar'
 import Topbar from './Topbar'
 import ChangePasswordModal from './ChangePasswordModal'
-import { useAuth } from '@operalia/compartido/hooks/useAuth.js'
-import { Loader } from '@operalia/compartido/components/ui/Feedback.jsx'
 
 const isMobile = () => window.matchMedia('(max-width: 900px)').matches
 

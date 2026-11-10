@@ -17,9 +17,6 @@ export const getRoles = () =>
       permissions: r.role_permissions.map((rp) => rp.permission_code),
     })))
 
-export const createRole = ({ code, name, scope, description }) =>
-  unwrap(supabase.from('roles').insert({ code, name, scope, description }).select().single())
-
 export async function setRolePermission(roleId, permissionCode, enabled) {
   if (enabled) {
     await unwrap(supabase.from('role_permissions').upsert({ role_id: roleId, permission_code: permissionCode }))

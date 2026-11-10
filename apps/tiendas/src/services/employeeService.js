@@ -32,10 +32,6 @@ export const getAssignableEmployees = ({ branchId } = {}) =>
     branchId,
   ).order('full_name'))
 
-export const getEmployeeDepartments = (employeeId) =>
-  unwrap(supabase.from('employee_departments').select('department_id').eq('employee_id', employeeId))
-    .then((rows) => rows.map((r) => r.department_id))
-
 export async function setEmployeeDepartments(employeeId, departmentIds) {
   await unwrap(supabase.from('employee_departments').delete().eq('employee_id', employeeId))
   if (departmentIds.length) {
@@ -103,4 +99,3 @@ export async function requestPasswordReset(companyCode, identifier) {
   return 'admin'
 }
 
-export { generateTempPassword } from '@operalia/compartido/utils/passwords.js'

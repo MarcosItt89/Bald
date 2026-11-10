@@ -6,12 +6,9 @@ import { useCallback, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '@operalia/compartido/hooks/useAuth.js'
 import { useAsync } from '@operalia/compartido/hooks/useAsync.js'
-import { NAV_GROUPS, canAccess } from '../../config/navigation'
 import { addDaysISO, todayISO } from '@operalia/compartido/utils/formatters.js'
 import { PERIODS } from '@operalia/compartido/reports/reportFormat.js'
-
-export { PERIODS, shortDate, fmtPct, fmtHours, complianceTone } from '@operalia/compartido/reports/reportFormat.js'
-
+import { NAV_GROUPS, canAccess } from '../../config/navigation'
 
 const DAY_MS = 864e5
 const isoOk = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v ?? '')
@@ -63,10 +60,9 @@ export function useReportFilters() {
   return { filters, setFilter }
 }
 
-/** Ejecuta la función del servicio de la pestaña con los filtros actuales. */
+/** Ejecuta la función del servicio de la pestaña con los filtros actuales (los permisos los revisa la base). */
 export function useReport(fetcher, filters) {
-  const { hasPermission } = useAuth()
-  const load = useCallback(() => fetcher({ ...filters, can: hasPermission }), [fetcher, filters, hasPermission])
+  const load = useCallback(() => fetcher(filters), [fetcher, filters])
   return useAsync(load)
 }
 

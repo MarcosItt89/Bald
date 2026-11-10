@@ -6,12 +6,12 @@ import { useCallback, useState } from 'react'
 import { KeyRound } from 'lucide-react'
 import { useAsync } from '@operalia/compartido/hooks/useAsync.js'
 import { useToast } from '@operalia/compartido/hooks/useToast.js'
-import { getEmployees } from '../../services/employeeService'
-import { getRoles, getPermissionsCatalog, getEmployeeOverrides, setEmployeeOverride } from '../../services/roleService'
 import PageHeader from '@operalia/compartido/components/ui/PageHeader.jsx'
 import Card from '@operalia/compartido/components/ui/Card.jsx'
 import Table from '@operalia/compartido/components/ui/Table.jsx'
 import Badge from '@operalia/compartido/components/ui/Badge.jsx'
+import { getEmployees } from '../../services/employeeService'
+import { getRoles, getPermissionsCatalog, getEmployeeOverrides, setEmployeeOverride } from '../../services/roleService'
 
 export default function PermissionsPage() {
   const toast = useToast()

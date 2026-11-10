@@ -15,11 +15,6 @@ import { Camera, CheckCircle2, RotateCcw, ShieldAlert, Thermometer, TriangleAler
 import { useAuth } from '@operalia/compartido/hooks/useAuth.js'
 import { useAsync } from '@operalia/compartido/hooks/useAsync.js'
 import { useToast } from '@operalia/compartido/hooks/useToast.js'
-import { P } from '../../config/permissions'
-import {
-  getRunDetail, saveAnswer, completeRun, reopenRun, reviewRun, cancelRun,
-} from '../../services/checklistService'
-import { uploadEvidence } from '../../services/evidenceService'
 import { CHECKLIST_REVIEW_STATUS, CHECKLIST_RUN_STATUS } from '@operalia/compartido/constants/status.js'
 import { formatDateTime, formatTime } from '@operalia/compartido/utils/formatters.js'
 import Modal from '@operalia/compartido/components/ui/Modal.jsx'
@@ -29,6 +24,11 @@ import Badge from '@operalia/compartido/components/ui/Badge.jsx'
 import ProgressBar from '@operalia/compartido/components/ui/ProgressBar.jsx'
 import { Textarea } from '@operalia/compartido/components/ui/Input.jsx'
 import { ErrorState, Loader } from '@operalia/compartido/components/ui/Feedback.jsx'
+import { P } from '../../config/permissions'
+import {
+  getRunDetail, saveAnswer, completeRun, reopenRun, reviewRun, cancelRun,
+} from '../../services/checklistService'
+import { uploadEvidence } from '../../services/evidenceService'
 import EvidenceGallery, { EvidenceThumb } from '../../components/domain/EvidenceGallery'
 import EvidenceUploader from '../../components/domain/EvidenceUploader'
 

@@ -59,10 +59,6 @@ export async function setEmployeeZones(employeeId, zoneIds) {
 }
 
 // ─── Empresa y marca (0028) ─────────────────────────────────────────────────
-// Logo, color y nombre visible viven en el paquete compartido (también los usa la Consola).
-export {
-  LOGO_MAX_BYTES, LOGO_TYPES, getCompanyBranding, removeCompanyLogo, saveCompanyBranding, uploadCompanyLogo,
-} from '@operalia/compartido/branding/brandingService.js'
-
+// Logo, color y nombre visible: @operalia/compartido/branding/brandingService.js (también los usa la Consola).
 export const getMyCompany = (companyId) =>
   unwrap(supabase.from('companies').select('id, name, code, display_name, logo_url, brand_color').eq('id', companyId).single())

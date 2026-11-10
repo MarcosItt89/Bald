@@ -14,15 +14,6 @@ export const supabase = isSupabaseConfigured
     })
   : null
 
-/**
- * Cliente "desechable" SIN sesión persistente. Se usa para dar de alta la
- * cuenta de un empleado (auth.signUp) sin cerrar la sesión del administrador.
- */
-export const createIsolatedClient = () =>
-  createClient(env.supabaseUrl, env.supabaseKey, {
-    auth: { persistSession: false, autoRefreshToken: false, storageKey: 'operalia-signup' },
-  })
-
 /** Traduce errores de Supabase/Postgres a español. */
 export function friendlyError(error) {
   if (!error) return 'Error desconocido'

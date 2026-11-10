@@ -50,9 +50,6 @@ export const updateItem = (id, item) =>
 
 export const deleteItem = (id) => unwrap(supabase.from('receiving_items').delete().eq('id', id))
 
-export const updateReceivingHeader = (id, { invoice_number, notes }) =>
-  unwrap(supabase.from('receiving_orders').update(emptyToNull({ invoice_number, notes })).eq('id', id))
-
 export const closeReceiving = (id) =>
   unwrap(supabase.from('receiving_orders').update({ status: 'completed' }).eq('id', id).select().single())
 

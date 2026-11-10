@@ -10,7 +10,6 @@ import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { CirclePlus, Copy, RefreshCw } from 'lucide-react'
 import { useToast } from '@operalia/compartido/hooks/useToast.js'
-import { linkLeadToCompany, provisionCompany } from '../services/platformService'
 import { generateTempPassword } from '@operalia/compartido/utils/passwords.js'
 import { companyLink, normalizeCompanyCode } from '@operalia/compartido/config/env.js'
 import PageHeader from '@operalia/compartido/components/ui/PageHeader.jsx'
@@ -18,6 +17,7 @@ import Card from '@operalia/compartido/components/ui/Card.jsx'
 import Button from '@operalia/compartido/components/ui/Button.jsx'
 import Input from '@operalia/compartido/components/ui/Input.jsx'
 import Select from '@operalia/compartido/components/ui/Select.jsx'
+import { linkLeadToCompany, provisionCompany } from '../services/platformService'
 
 const TIMEZONES = [
   ['America/Tijuana', 'Tijuana (Baja California)'],

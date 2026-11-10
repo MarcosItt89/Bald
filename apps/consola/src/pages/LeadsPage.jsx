@@ -9,7 +9,6 @@ import { useNavigate } from 'react-router-dom'
 import { Handshake, Plus, Rocket, Trash2 } from 'lucide-react'
 import { useAsync } from '@operalia/compartido/hooks/useAsync.js'
 import { useToast } from '@operalia/compartido/hooks/useToast.js'
-import { deleteLead, getCompanies, getLeads, saveLead } from '../services/platformService'
 import { LEAD_STATUS, toOptions } from '@operalia/compartido/constants/status.js'
 import { formatRelative } from '@operalia/compartido/utils/formatters.js'
 import PageHeader from '@operalia/compartido/components/ui/PageHeader.jsx'
@@ -22,6 +21,7 @@ import Input, { Textarea } from '@operalia/compartido/components/ui/Input.jsx'
 import Select from '@operalia/compartido/components/ui/Select.jsx'
 import StatusBadge from '@operalia/compartido/components/ui/StatusBadge.jsx'
 import { ErrorState } from '@operalia/compartido/components/ui/Feedback.jsx'
+import { deleteLead, getCompanies, getLeads, saveLead } from '../services/platformService'
 
 const EMPTY = { chain_name: '', contact_name: '', contact_email: '', contact_phone: '', branch_count: '', business_type: '', status: 'new', notes: '' }
 const OPEN = ['new', 'demo', 'negotiation']

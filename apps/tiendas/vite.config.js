@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import { manualChunks } from '../../packages/compartido/build/manualChunks.js'
 
 export default defineConfig({
   // Lee el .env de la raíz del repo (lo comparten tiendas y Consola).
@@ -8,6 +9,7 @@ export default defineConfig({
   build: {
     rolldownOptions: {
       output: {
+        manualChunks,
         chunkFileNames: (chunk) => (chunk.moduleIds?.some((id) => id.includes('@zxing'))
           ? 'assets/zxing-[hash].js'
           : 'assets/[name]-[hash].js'),

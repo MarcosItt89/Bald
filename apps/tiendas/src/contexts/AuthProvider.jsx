@@ -20,8 +20,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AuthContext } from '@operalia/compartido/contexts/authContext.js'
 import { supabase, unwrap, friendlyError } from '@operalia/compartido/lib/supabaseClient.js'
 import { isSupabaseConfigured, usernameToEmail } from '@operalia/compartido/config/env.js'
-import { P } from '../config/permissions'
 import { applyBrand, brandFromProfile, saveBrand } from '@operalia/compartido/theme/brand.js'
+import { P } from '../config/permissions'
 
 const BRANCH_KEY = 'operalia.activeBranch'
 

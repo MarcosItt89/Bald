@@ -16,11 +16,6 @@ import { ArrowLeft, CheckCircle2, ClipboardCheck, Plus, Trash2, XCircle } from '
 import { useAuth } from '@operalia/compartido/hooks/useAuth.js'
 import { useAsync } from '@operalia/compartido/hooks/useAsync.js'
 import { useToast } from '@operalia/compartido/hooks/useToast.js'
-import { P } from '../../config/permissions'
-import {
-  getReceivingOrder, addItem, updateItem, deleteItem, closeReceiving, cancelReceiving,
-} from '../../services/receivingService'
-import { getEvidence } from '../../services/evidenceService'
 import { RECEIVING_STATUS } from '@operalia/compartido/constants/status.js'
 import { formatCurrency, formatDate, formatDateTime, formatNumber } from '@operalia/compartido/utils/formatters.js'
 import PageHeader from '@operalia/compartido/components/ui/PageHeader.jsx'
@@ -31,6 +26,11 @@ import Input from '@operalia/compartido/components/ui/Input.jsx'
 import Modal from '@operalia/compartido/components/ui/Modal.jsx'
 import StatusBadge from '@operalia/compartido/components/ui/StatusBadge.jsx'
 import { ErrorState, Loader } from '@operalia/compartido/components/ui/Feedback.jsx'
+import { P } from '../../config/permissions'
+import {
+  getReceivingOrder, addItem, updateItem, deleteItem, closeReceiving, cancelReceiving,
+} from '../../services/receivingService'
+import { getEvidence } from '../../services/evidenceService'
 import ProductPicker from '../../components/domain/ProductPicker'
 import EvidenceUploader from '../../components/domain/EvidenceUploader'
 import EvidenceGallery from '../../components/domain/EvidenceGallery'

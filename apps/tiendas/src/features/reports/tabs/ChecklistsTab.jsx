@@ -1,12 +1,13 @@
 import { useNavigate } from 'react-router-dom'
-import { getChecklistReport, pct } from '../../../services/reportService'
 import { SHIFTS } from '@operalia/compartido/constants/status.js'
 import Table from '@operalia/compartido/components/ui/Table.jsx'
 import Donut from '@operalia/compartido/components/charts/Donut.jsx'
 import BarList from '@operalia/compartido/components/charts/BarList.jsx'
 import Heatmap from '@operalia/compartido/components/charts/Heatmap.jsx'
-import { complianceTone, fmtPct, useReport, useReportLink } from '../reportFilters'
+import { complianceTone, fmtPct } from '@operalia/compartido/reports/reportFormat.js'
 import { ReportSection, ReportState } from '@operalia/compartido/reports/reportUi.jsx'
+import { getChecklistReport, pct } from '../../../services/reportService'
+import { useReport, useReportLink } from '../reportFilters'
 import ManagementBlock from './ManagementBlock'
 
 const WEEKDAYS = [[1, 'Lun'], [2, 'Mar'], [3, 'Mié'], [4, 'Jue'], [5, 'Vie'], [6, 'Sáb'], [0, 'Dom']]

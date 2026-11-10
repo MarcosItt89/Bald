@@ -1,13 +1,14 @@
 import { Inbox, ShieldCheck, Siren, Timer } from 'lucide-react'
-import { getSupportReport } from '../../../services/reportService'
 import { TICKET_CATEGORY } from '@operalia/compartido/constants/status.js'
 import { useAuth } from '@operalia/compartido/hooks/useAuth.js'
-import { P } from '../../../config/permissions'
 import StatCard from '@operalia/compartido/components/ui/StatCard.jsx'
 import BarList from '@operalia/compartido/components/charts/BarList.jsx'
 import Donut from '@operalia/compartido/components/charts/Donut.jsx'
-import { fmtHours, fmtPct, useReport, useReportLink } from '../reportFilters'
+import { fmtHours, fmtPct } from '@operalia/compartido/reports/reportFormat.js'
 import { ReportSection, ReportState } from '@operalia/compartido/reports/reportUi.jsx'
+import { getSupportReport } from '../../../services/reportService'
+import { P } from '../../../config/permissions'
+import { useReport, useReportLink } from '../reportFilters'
 
 export default function SupportTab({ filters }) {
   const { data, loading, error, reload } = useReport(getSupportReport, filters)

@@ -5,7 +5,7 @@
  */
 import { Suspense, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { Activity, CirclePlus, Globe, Handshake, Headset, LogOut, Menu, Palette } from 'lucide-react'
+import { Activity, CirclePlus, Globe, Handshake, Headset, LogOut, Menu, Palette, ScrollText } from 'lucide-react'
 import { useAuth } from '@operalia/compartido/hooks/useAuth.js'
 import { getInitials } from '@operalia/compartido/utils/formatters.js'
 import { Loader } from '@operalia/compartido/components/ui/Feedback.jsx'
@@ -17,6 +17,7 @@ const NAV = [
   { icon: Handshake,  label: 'Prospectos',    path: '/prospectos' },
   { icon: CirclePlus, label: 'Nueva empresa', path: '/nueva' },
   { icon: Headset,    label: 'Soporte de tiendas', path: '/soporte' },
+  { icon: ScrollText, label: 'Bitácora',      path: '/bitacora' },
 ]
 
 const isMobile = () => window.matchMedia('(max-width: 900px)').matches

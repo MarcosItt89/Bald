@@ -1,13 +1,14 @@
 import { CalendarClock, ClipboardList, PackageSearch, PackageX, Trash2, TriangleAlert } from 'lucide-react'
-import { getInventoryReport } from '../../../services/reportService'
 import { MOVEMENT_TYPES, WASTE_REASONS } from '@operalia/compartido/constants/status.js'
 import { formatCurrency, formatNumber } from '@operalia/compartido/utils/formatters.js'
 import StatCard from '@operalia/compartido/components/ui/StatCard.jsx'
 import BarList from '@operalia/compartido/components/charts/BarList.jsx'
 import LineChart from '@operalia/compartido/components/charts/LineChart.jsx'
 import Donut from '@operalia/compartido/components/charts/Donut.jsx'
-import { complianceTone, fmtPct, shortDate, useReport, useReportLink } from '../reportFilters'
+import { complianceTone, fmtPct, shortDate } from '@operalia/compartido/reports/reportFormat.js'
 import { Delta, ReportSection, ReportState } from '@operalia/compartido/reports/reportUi.jsx'
+import { getInventoryReport } from '../../../services/reportService'
+import { useReport, useReportLink } from '../reportFilters'
 
 // El color sigue al motivo (orden fijo), no a su posición en el ranking.
 const REASON_SLOT = { expired: 's1', damaged: 's2', theft: 's3', mishandling: 's4', temperature: 's5', other: 's6' }

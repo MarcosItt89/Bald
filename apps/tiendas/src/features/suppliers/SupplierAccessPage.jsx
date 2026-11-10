@@ -10,7 +10,6 @@ import { DoorOpen, LogIn, LogOut } from 'lucide-react'
 import { useAuth } from '@operalia/compartido/hooks/useAuth.js'
 import { useAsync } from '@operalia/compartido/hooks/useAsync.js'
 import { useToast } from '@operalia/compartido/hooks/useToast.js'
-import { getSuppliers, getVisits, registerVisit, closeVisit } from '../../services/supplierService'
 import { addDaysISO, formatDateTime, formatDuration, formatTime, todayISO } from '@operalia/compartido/utils/formatters.js'
 import PageHeader from '@operalia/compartido/components/ui/PageHeader.jsx'
 import Card from '@operalia/compartido/components/ui/Card.jsx'
@@ -21,6 +20,7 @@ import Modal from '@operalia/compartido/components/ui/Modal.jsx'
 import Input, { Textarea } from '@operalia/compartido/components/ui/Input.jsx'
 import Select from '@operalia/compartido/components/ui/Select.jsx'
 import { ErrorState } from '@operalia/compartido/components/ui/Feedback.jsx'
+import { getSuppliers, getVisits, registerVisit, closeVisit } from '../../services/supplierService'
 
 const PURPOSES = [
   { value: 'entrega', label: 'Entrega de mercancía' },

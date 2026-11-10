@@ -37,5 +37,3 @@ export const changeOrderStatus = (id, status, comment) =>
     .update({ status, status_comment: comment || null })
     .eq('id', id).select().single())
 
-export const setReceivedQty = (itemId, qty) =>
-  unwrap(supabase.from('order_items').update({ received_qty: Number(qty) }).eq('id', itemId))

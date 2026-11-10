@@ -23,7 +23,7 @@ import { useAuth } from '@operalia/compartido/hooks/useAuth.js'
 import { normalizeCompanyCode, readRememberedCompany, rememberCompany } from '@operalia/compartido/config/env.js'
 import Button from '@operalia/compartido/components/ui/Button.jsx'
 import { useDebouncedValue } from '@operalia/compartido/hooks/useDebouncedValue.js'
-import { getCompanyBranding } from '../../services/organizationService'
+import { getCompanyBranding } from '@operalia/compartido/branding/brandingService.js'
 import { applyBrand, readSavedBrand } from '@operalia/compartido/theme/brand.js'
 import ForgotPasswordModal from './ForgotPasswordModal'
 

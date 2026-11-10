@@ -8,7 +8,6 @@
  */
 import { useState } from 'react'
 import { useToast } from '@operalia/compartido/hooks/useToast.js'
-import { createMovement, updateInventorySettings } from '../../services/inventoryService'
 import { INVENTORY_STATUS, MOVEMENT_TYPES } from '@operalia/compartido/constants/status.js'
 import { formatCurrency, formatDateTime, formatNumber } from '@operalia/compartido/utils/formatters.js'
 import Modal from '@operalia/compartido/components/ui/Modal.jsx'
@@ -17,6 +16,7 @@ import Input from '@operalia/compartido/components/ui/Input.jsx'
 import Select from '@operalia/compartido/components/ui/Select.jsx'
 import Tabs from '@operalia/compartido/components/ui/Tabs.jsx'
 import StatusBadge from '@operalia/compartido/components/ui/StatusBadge.jsx'
+import { createMovement, updateInventorySettings } from '../../services/inventoryService'
 
 const MANUAL_TYPES = ['in', 'out', 'adjustment_in', 'adjustment_out', 'waste', 'return', 'count']
 const REASON_REQUIRED = ['adjustment_in', 'adjustment_out', 'waste', 'count']

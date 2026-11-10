@@ -2,6 +2,7 @@
 // envDir: lee el .env de la raíz del repo (las mismas VITE_SUPABASE_* que la app de tiendas).
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { manualChunks } from '../../packages/compartido/build/manualChunks.js'
 
 export default defineConfig({
   envDir: '../..',
@@ -9,5 +10,6 @@ export default defineConfig({
   preview: { port: 4174 },
   // Marca el build como Consola (env.app en el paquete compartido).
   define: { 'import.meta.env.VITE_OPERALIA_APP': JSON.stringify('consola') },
+  build: { rolldownOptions: { output: { manualChunks } } },
   plugins: [react()],
 })

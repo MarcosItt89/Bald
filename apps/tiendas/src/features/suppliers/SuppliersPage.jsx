@@ -8,8 +8,6 @@ import { useAuth } from '@operalia/compartido/hooks/useAuth.js'
 import { useAsync } from '@operalia/compartido/hooks/useAsync.js'
 import { useToast } from '@operalia/compartido/hooks/useToast.js'
 import { useDebouncedValue } from '@operalia/compartido/hooks/useDebouncedValue.js'
-import { P } from '../../config/permissions'
-import { getSuppliers, saveSupplier } from '../../services/supplierService'
 import { SUPPLIER_STATUS, toOptions } from '@operalia/compartido/constants/status.js'
 import PageHeader from '@operalia/compartido/components/ui/PageHeader.jsx'
 import Card from '@operalia/compartido/components/ui/Card.jsx'
@@ -21,6 +19,8 @@ import Modal from '@operalia/compartido/components/ui/Modal.jsx'
 import Input from '@operalia/compartido/components/ui/Input.jsx'
 import Select from '@operalia/compartido/components/ui/Select.jsx'
 import { ErrorState } from '@operalia/compartido/components/ui/Feedback.jsx'
+import { P } from '../../config/permissions'
+import { getSuppliers, saveSupplier } from '../../services/supplierService'
 
 const EMPTY = {
   code: '', name: '', legal_name: '', rfc: '', merchandise_type: '', contact_name: '', phone: '', email: '', status: 'active',

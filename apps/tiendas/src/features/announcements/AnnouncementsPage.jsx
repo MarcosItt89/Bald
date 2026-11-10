@@ -10,11 +10,6 @@ import { Archive, Check, CheckCheck, Megaphone, Paperclip, Plus, Users } from 'l
 import { useAuth } from '@operalia/compartido/hooks/useAuth.js'
 import { useAsync } from '@operalia/compartido/hooks/useAsync.js'
 import { useToast } from '@operalia/compartido/hooks/useToast.js'
-import { P } from '../../config/permissions'
-import {
-  archiveAnnouncement, getAnnouncementProgress, getAnnouncements, getAttachmentUrl, markAnnouncementRead, publishAnnouncement,
-} from '../../services/announcementService'
-import { getDepartments, getMyBranches, getZones } from '../../services/organizationService'
 import { addDaysISO, formatDate, formatDateTime, formatRelative, todayISO } from '@operalia/compartido/utils/formatters.js'
 import PageHeader from '@operalia/compartido/components/ui/PageHeader.jsx'
 import Tabs from '@operalia/compartido/components/ui/Tabs.jsx'
@@ -25,6 +20,11 @@ import Input, { Textarea } from '@operalia/compartido/components/ui/Input.jsx'
 import Select from '@operalia/compartido/components/ui/Select.jsx'
 import ProgressBar from '@operalia/compartido/components/ui/ProgressBar.jsx'
 import { EmptyState, ErrorState, Loader } from '@operalia/compartido/components/ui/Feedback.jsx'
+import { P } from '../../config/permissions'
+import {
+  archiveAnnouncement, getAnnouncementProgress, getAnnouncements, getAttachmentUrl, markAnnouncementRead, publishAnnouncement,
+} from '../../services/announcementService'
+import { getDepartments, getMyBranches, getZones } from '../../services/organizationService'
 
 const SCOPES = { company: 'Toda la empresa', zone: 'Una zona', branch: 'Una sucursal', department: 'Un departamento' }
 

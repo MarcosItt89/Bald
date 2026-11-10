@@ -685,6 +685,7 @@ left join (values
   ('platform_company_kpis', 'Valida superadmin', false), ('platform_company_trend', 'Valida superadmin', false),
   ('platform_checklist_heatmap', 'Valida superadmin', false), ('platform_company_health', 'Valida superadmin', false),
   ('platform_get_company_branding', 'Valida superadmin (0029)', false),
+  ('platform_audit_log', 'Valida superadmin (0032)', false),
   -- Marca (0028).
   ('set_company_branding', 'Valida propietario de esa empresa o superadmin', false),
   ('can_manage_branding_folder', 'Sobre el usuario que llama (propietario de esa carpeta o superadmin)', false),

@@ -3,10 +3,10 @@ import { Link, useNavigate } from 'react-router-dom'
 import { KeyRound, TriangleAlert } from 'lucide-react'
 import { useAuth } from '@operalia/compartido/hooks/useAuth.js'
 import { useToast } from '@operalia/compartido/hooks/useToast.js'
-import { changeOwnPassword } from '../../services/employeeService'
 import Input from '@operalia/compartido/components/ui/Input.jsx'
 import Button from '@operalia/compartido/components/ui/Button.jsx'
 import { Loader } from '@operalia/compartido/components/ui/Feedback.jsx'
+import { changeOwnPassword } from '../../services/employeeService'
 
 export default function ResetPasswordPage() {
   const { status, session } = useAuth()

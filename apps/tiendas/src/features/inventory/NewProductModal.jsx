@@ -5,12 +5,12 @@
 import { useState } from 'react'
 import { useAuth } from '@operalia/compartido/hooks/useAuth.js'
 import { useToast } from '@operalia/compartido/hooks/useToast.js'
-import { createProduct } from '../../services/inventoryService'
 import { UNITS } from '@operalia/compartido/constants/status.js'
 import Modal from '@operalia/compartido/components/ui/Modal.jsx'
 import Button from '@operalia/compartido/components/ui/Button.jsx'
 import Input from '@operalia/compartido/components/ui/Input.jsx'
 import Select from '@operalia/compartido/components/ui/Select.jsx'
+import { createProduct } from '../../services/inventoryService'
 
 const EMPTY = {
   sku: '', name: '', category: '', department_id: '', unit: 'pz', cost: '', price: '',

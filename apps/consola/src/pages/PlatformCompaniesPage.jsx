@@ -13,7 +13,6 @@ import { useNavigate } from 'react-router-dom'
 import { Globe, Plus, Ban, CirclePlay, Headset, CircleCheck, Circle, QrCode, Palette } from 'lucide-react'
 import { useAsync } from '@operalia/compartido/hooks/useAsync.js'
 import { useToast } from '@operalia/compartido/hooks/useToast.js'
-import { getCompanies, getCompanyHealth, setCompanyStatus } from '../services/platformService'
 import { ACCOUNT_HEALTH, COMPANY_STATUS } from '@operalia/compartido/constants/status.js'
 import { formatDate, formatRelative } from '@operalia/compartido/utils/formatters.js'
 import { CompanyLinkModal } from '@operalia/compartido/branding/CompanyLink.jsx'
@@ -25,6 +24,7 @@ import StatusBadge from '@operalia/compartido/components/ui/StatusBadge.jsx'
 import ProgressBar from '@operalia/compartido/components/ui/ProgressBar.jsx'
 import Modal from '@operalia/compartido/components/ui/Modal.jsx'
 import { ErrorState } from '@operalia/compartido/components/ui/Feedback.jsx'
+import { getCompanies, getCompanyHealth, setCompanyStatus } from '../services/platformService'
 
 export default function PlatformCompaniesPage() {
   const navigate = useNavigate()

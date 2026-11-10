@@ -19,6 +19,7 @@ const LeadsPage             = page(() => import('./pages/LeadsPage'))
 const PlatformSupportPage   = page(() => import('./pages/PlatformSupportPage'))
 const PlatformTicketPage    = page(() => import('./pages/PlatformTicketPage'))
 const BrandPage             = page(() => import('./pages/BrandPage'))
+const AuditLogPage          = page(() => import('./pages/AuditLogPage'))
 const NotFoundPage          = page(() => import('./pages/NotFoundPage'))
 
 export const router = createBrowserRouter([
@@ -34,6 +35,7 @@ export const router = createBrowserRouter([
       { path: 'soporte', element: <PlatformSupportPage /> },
       { path: 'soporte/:id', element: <PlatformTicketPage /> },
       { path: 'marca', element: <BrandPage /> },
+      { path: 'bitacora', element: <AuditLogPage /> },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

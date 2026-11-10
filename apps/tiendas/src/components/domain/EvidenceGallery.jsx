@@ -7,9 +7,9 @@
 import { useCallback } from 'react'
 import { FileText, ImageOff } from 'lucide-react'
 import { useAsync } from '@operalia/compartido/hooks/useAsync.js'
-import { getSignedUrl } from '../../services/evidenceService'
 import { EVIDENCE_STATUS } from '@operalia/compartido/constants/status.js'
 import StatusBadge from '@operalia/compartido/components/ui/StatusBadge.jsx'
+import { getSignedUrl } from '../../services/evidenceService'
 
 export function EvidenceThumb({ evidence, showStatus = false, onSelect, size = 72 }) {
   const load = useCallback(() => getSignedUrl(evidence.storage_path), [evidence.storage_path])

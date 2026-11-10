@@ -1,9 +1,10 @@
-import { getTaskReport, pct } from '../../../services/reportService'
 import LineChart from '@operalia/compartido/components/charts/LineChart.jsx'
 import Donut from '@operalia/compartido/components/charts/Donut.jsx'
 import BarList from '@operalia/compartido/components/charts/BarList.jsx'
-import { fmtHours, fmtPct, shortDate, useReport, useReportLink } from '../reportFilters'
+import { fmtHours, fmtPct, shortDate } from '@operalia/compartido/reports/reportFormat.js'
 import { ReportSection, ReportState } from '@operalia/compartido/reports/reportUi.jsx'
+import { getTaskReport, pct } from '../../../services/reportService'
+import { useReport, useReportLink } from '../reportFilters'
 
 const CLOSE_COLUMNS = (label) => [
   { key: 'name', label }, { key: 'count', label: 'Cerradas' }, { key: 'hours', label: 'Horas promedio' }, { key: 'onTime', label: '% a tiempo' },

@@ -234,12 +234,6 @@ export const TICKET_CATEGORY = {
 }
 
 /** Módulos que el usuario puede elegir al reportar un problema. */
-export const APP_MODULES = [
-  'Dashboard', 'Inventario', 'Consulta de precios', 'Recibo', 'Proveedores', 'Pedidos',
-  'Cambios de precio', 'Cenefas', 'Caducidades', 'Checklists', 'Evidencias', 'Tareas',
-  'Reportes', 'Empleados', 'Roles y permisos', 'Inicio de sesión', 'Otro',
-]
-
 // ─── ORGANIZACIÓN ────────────────────────────────────────────────────────────
 export const BRANCH_TYPES = {
   tienda: 'Tienda', express: 'Express', almacen: 'Almacén', cedis: 'CEDIS', restaurante: 'Restaurante', otro: 'Otro',

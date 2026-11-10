@@ -11,12 +11,13 @@ import { useCallback, useMemo } from 'react'
 import { BarChart3, Building2 } from 'lucide-react'
 import { useAuth } from '@operalia/compartido/hooks/useAuth.js'
 import { useAsync } from '@operalia/compartido/hooks/useAsync.js'
-import { P } from '../../config/permissions'
-import { getDepartments, getMyBranches, getZones } from '../../services/organizationService'
 import { formatDate } from '@operalia/compartido/utils/formatters.js'
 import PageHeader from '@operalia/compartido/components/ui/PageHeader.jsx'
 import Tabs from '@operalia/compartido/components/ui/Tabs.jsx'
-import { PERIODS, useReportFilters } from './reportFilters'
+import { PERIODS } from '@operalia/compartido/reports/reportFormat.js'
+import { P } from '../../config/permissions'
+import { getDepartments, getMyBranches, getZones } from '../../services/organizationService'
+import { useReportFilters } from './reportFilters'
 import SummaryTab from './tabs/SummaryTab'
 import ChecklistsTab from './tabs/ChecklistsTab'
 import TemperaturesTab from './tabs/TemperaturesTab'
@@ -55,7 +56,6 @@ export default function ReportsPage() {
 
   const tabs = TABS.filter((t) => !t.anyOf || hasAny(t.anyOf))
   const current = tabs.find((t) => t.key === filters.tab) ?? tabs[0]
-  const deptName = departments.find((d) => d.id === filters.deptId)?.name ?? null
 
   const { branchId: selectedBranch, zoneId, deptId, from, to, prevFrom, prevTo, compare } = filters
   const zoneBranches = zoneId ? branches.filter((b) => b.zone_id === zoneId) : branches
@@ -63,8 +63,8 @@ export default function ReportsPage() {
   const query = useMemo(() => ({
     // Zona elegida y «todas»: la consulta se limita a las sucursales de esa zona.
     branchId: selectedBranch ?? (zoneId ? zoneBranchKey.split(',').filter(Boolean) : null),
-    deptId, deptName, from, to, prevFrom, prevTo, compare,
-  }), [selectedBranch, zoneId, zoneBranchKey, deptId, deptName, from, to, prevFrom, prevTo, compare])
+    deptId, from, to, prevFrom, prevTo, compare,
+  }), [selectedBranch, zoneId, zoneBranchKey, deptId, from, to, prevFrom, prevTo, compare])
 
   return (
     <div className="page">

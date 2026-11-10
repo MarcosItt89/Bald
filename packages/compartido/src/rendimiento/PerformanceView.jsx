@@ -162,7 +162,8 @@ export default function PerformanceView({ scope = 'platform', source: cfg, compa
 
       {error && <ErrorState error={error} onRetry={reload} />}
       {loading && !rows ? <Loader text="Calculando rendimiento…" /> : rows && (<>
-        <div className="report-kpis">
+        {/* 8 tarjetas: 4×2 en escritorio, 2×4 en tablet y celular (sin huérfanas). */}
+        <div className="report-kpis report-kpis-8">
           {isPlatform && !sel
             ? <StatCard label="Empresas activas" value={totals.activeCompanies} icon={Globe} tone="blue" hint={`${totals.companies} en total · ${branches.length} sucursales`} />
             : <StatCard label={isPlatform ? 'Sucursales de la empresa' : 'Sucursales'} icon={Building2} tone="blue"

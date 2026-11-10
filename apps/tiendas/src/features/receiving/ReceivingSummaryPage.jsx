@@ -9,7 +9,6 @@ import { useNavigate } from 'react-router-dom'
 import { Download, FileSpreadsheet } from 'lucide-react'
 import { useAuth } from '@operalia/compartido/hooks/useAuth.js'
 import { useAsync } from '@operalia/compartido/hooks/useAsync.js'
-import { getReceivingOrders } from '../../services/receivingService'
 import { addDaysISO, formatDateTime, formatNumber, todayISO } from '@operalia/compartido/utils/formatters.js'
 import { downloadCsv } from '@operalia/compartido/utils/csv.js'
 import PageHeader from '@operalia/compartido/components/ui/PageHeader.jsx'
@@ -19,6 +18,7 @@ import Button from '@operalia/compartido/components/ui/Button.jsx'
 import Badge from '@operalia/compartido/components/ui/Badge.jsx'
 import StatCard from '@operalia/compartido/components/ui/StatCard.jsx'
 import { ErrorState } from '@operalia/compartido/components/ui/Feedback.jsx'
+import { getReceivingOrders } from '../../services/receivingService'
 
 export default function ReceivingSummaryPage() {
   const { branchFilter } = useAuth()

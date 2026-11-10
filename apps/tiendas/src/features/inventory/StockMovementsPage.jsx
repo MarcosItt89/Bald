@@ -11,7 +11,6 @@ import { ArrowLeftRight, Download } from 'lucide-react'
 import { useAuth } from '@operalia/compartido/hooks/useAuth.js'
 import { useAsync } from '@operalia/compartido/hooks/useAsync.js'
 import { useDebouncedValue } from '@operalia/compartido/hooks/useDebouncedValue.js'
-import { getMovements } from '../../services/inventoryService'
 import { MOVEMENT_TYPES, toOptions } from '@operalia/compartido/constants/status.js'
 import { addDaysISO, formatDateTime, formatNumber, todayISO } from '@operalia/compartido/utils/formatters.js'
 import { downloadCsv } from '@operalia/compartido/utils/csv.js'
@@ -22,6 +21,7 @@ import Button from '@operalia/compartido/components/ui/Button.jsx'
 import StatusBadge from '@operalia/compartido/components/ui/StatusBadge.jsx'
 import SearchInput from '@operalia/compartido/components/ui/SearchInput.jsx'
 import { ErrorState } from '@operalia/compartido/components/ui/Feedback.jsx'
+import { getMovements } from '../../services/inventoryService'
 
 export default function StockMovementsPage() {
   const { branchFilter } = useAuth()

@@ -91,7 +91,7 @@ export default function BrandEditor({ company, onSaved, subtitle = 'Se aplica en
               <input className={`form-input mono ${validColor ? '' : 'input-error'}`} value={f.color} maxLength={7}
                 onChange={(e) => set({ color: e.target.value.startsWith('#') ? e.target.value : `#${e.target.value}` })}
                 aria-label="Color en hexadecimal" spellCheck={false} />
-              <Button variant="ghost" size="sm" onClick={() => set({ color: DEFAULT_BRAND_COLOR })} title="Azul de Operalia"><RotateCcw size={14} /> Original</Button>
+              <Button variant="ghost" size="sm" onClick={() => set({ color: DEFAULT_BRAND_COLOR })} title="Verde de Operalia"><RotateCcw size={14} /> Original</Button>
             </div>
             {palette.adjusted
               ? <span className="form-hint">Para que el texto blanco se lea bien (contraste AA), los botones usarán <span className="mono">{palette.primary}</span> ({palette.contrast}:1).</span>

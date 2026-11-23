@@ -6,6 +6,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import '@operalia/compartido/styles/global.css'
 import '@operalia/compartido/styles/components.css'
+import '@operalia/compartido/styles/tema.css'
 import './consola.css'
 import App from './App.jsx'
 

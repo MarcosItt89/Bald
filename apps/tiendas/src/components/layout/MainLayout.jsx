@@ -3,7 +3,8 @@
  * Sidebar (menú) + Topbar (barra superior) + contenido de la ruta (<Outlet/>).
  *
  * - En escritorio el botón ☰ colapsa el menú.
- * - En celular el menú se abre encima del contenido y se cierra al navegar.
+ * - En celular el menú se abre encima del contenido y se cierra al navegar;
+ *   abajo queda una barra con los accesos más usados (BottomNav).
  * - <Suspense> muestra un loader mientras se descarga el código de la página
  *   (las páginas se cargan bajo demanda con React.lazy, ver router.jsx).
  */
@@ -13,6 +14,7 @@ import { useAuth } from '@operalia/compartido/hooks/useAuth.js'
 import { Loader } from '@operalia/compartido/components/ui/Feedback.jsx'
 import Sidebar from './Sidebar'
 import Topbar from './Topbar'
+import BottomNav from './BottomNav'
 import ChangePasswordModal from './ChangePasswordModal'
 
 const isMobile = () => window.matchMedia('(max-width: 900px)').matches
@@ -23,7 +25,7 @@ export default function MainLayout() {
   const mustChange = session?.user?.user_metadata?.must_change_password === true
 
   return (
-    <div className={`app-shell ${sidebarOpen ? 'sidebar-open' : 'sidebar-collapsed'}`}>
+    <div className={`app-shell has-bottom-nav ${sidebarOpen ? 'sidebar-open' : 'sidebar-collapsed'}`}>
       <Sidebar onNavigate={() => { if (isMobile()) setSidebarOpen(false) }} />
       {sidebarOpen && <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />}
       <div className="main-area">
@@ -34,6 +36,7 @@ export default function MainLayout() {
           </Suspense>
         </main>
       </div>
+      <BottomNav onMenu={() => setSidebarOpen(true)} />
       <ChangePasswordModal open={mustChange} forced />
     </div>
   )

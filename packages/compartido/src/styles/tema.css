@@ -1,0 +1,213 @@
+/* =============================================================================
+   OPERALIA · TEMA
+   -----------------------------------------------------------------------------
+   Se carga después de global.css y components.css.
+
+   «Mercado formal» (tiendas, por defecto)
+     Fondo claro, una sola familia (Figtree), bordes finos y casi sin sombras.
+     El menú es claro con el logo y el nombre de la empresa arriba; la opción
+     activa se marca con un tinte suave del color de la empresa.
+
+   «Torre de control» (Consola, <html data-surface="night">)
+     Fondo nocturno, IBM Plex Sans/Mono, menú de íconos de 64 px y una barra
+     superior de estado. Solo cambia tokens y unas pocas reglas.
+   ============================================================================= */
+
+/* ─── MERCADO FORMAL ─────────────────────────────────────────────────────────── */
+body { font-feature-settings: 'tnum' 1; }
+
+.page-title { font-weight: 700; letter-spacing: -0.4px; }
+.card, .stat-card { box-shadow: none; }
+.card-header { border-bottom-color: var(--line-soft); }
+.btn { border-radius: var(--radius-sm); font-weight: 600; }
+.form-input, .form-select, .form-textarea { border-color: var(--border-strong); }
+.table th { font-size: 11px; letter-spacing: .5px; text-transform: uppercase; color: var(--text-muted); background: var(--surface-2); }
+
+/* Menú: marca de la empresa */
+.sidebar-brand { gap: 12px; }
+.sidebar-brand-mark {
+  width: 36px; height: 36px; flex-shrink: 0;
+  display: grid; place-items: center;
+  border-radius: 9px;
+  background: var(--primary); color: #fff;
+  font-weight: 700; font-size: 14px; letter-spacing: .3px;
+}
+.sidebar-brand-logo { width: 36px; height: 36px; border-radius: 9px; background: var(--surface); }
+.sidebar-brand-text { min-width: 0; }
+.sidebar-brand-name { font-size: 15px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sidebar-brand-company { font-size: 11px; color: var(--sidebar-label); letter-spacing: .2px; }
+
+.nav-group-label { letter-spacing: .6px; padding: 14px 10px 4px; }
+.nav-item { padding: 8px 10px; border-radius: var(--radius-sm); font-size: 13.5px; }
+.nav-item-active .nav-icon { color: var(--primary); }
+.sidebar-user-avatar { background: var(--surface-3); color: var(--text-primary); border: 1px solid var(--border); }
+
+/* Barra superior */
+.topbar { padding: 0 24px; }
+.topbar-avatar { background: var(--surface-3); color: var(--text-primary); }
+
+/* Tarjetas de indicadores: icono discreto, número tabular */
+.stat-card-value { font-size: 26px; letter-spacing: -0.5px; font-variant-numeric: tabular-nums; }
+.stat-card-icon { width: 40px; height: 40px; border-radius: var(--radius-sm); opacity: 1; }
+.stat-purple .stat-card-icon { background: #ece8f3; color: var(--dep-aba); }
+.stat-card-alert { color: #7d5a12; border-top-color: #eadfbf; }
+
+/* Pestañas subrayadas */
+.tabs { border-bottom-width: 1px; }
+.tab { margin-bottom: -1px; }
+.tab-active { color: var(--text-primary); }
+
+/* Inicio de sesión: panel plano con el color de la empresa */
+.login-brand { background: var(--primary-deep); position: relative; overflow: hidden; }
+.login-brand::after {
+  content: ''; position: absolute; inset: auto 0 0 0; height: 40%;
+  background: repeating-linear-gradient(90deg, rgba(255,255,255,.06) 0 1px, transparent 1px 56px);
+  pointer-events: none;
+}
+.login-brand-content { position: relative; z-index: 1; }
+.login-brand-title { font-weight: 700; letter-spacing: -0.8px; }
+.login-feature-list li { color: rgba(255,255,255,.88); }
+.login-feature-list li::before { color: #fff; opacity: .7; }
+.login-form-card { box-shadow: none; }
+
+/* Barra inferior en celular (tiendas) */
+.bottom-nav { display: none; }
+@media (max-width: 900px) {
+  .bottom-nav {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 700;
+    display: grid; grid-template-columns: repeat(5, 1fr); align-items: end;
+    padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+    background: var(--surface); border-top: 1px solid var(--border);
+  }
+  .bottom-nav-item {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    min-height: 48px; justify-content: center;
+    background: none; border: none; color: var(--text-muted);
+    font-size: 10.5px; font-weight: 600;
+  }
+  .bottom-nav-item.active { color: var(--primary); }
+  .bottom-nav-scan { position: relative; top: -14px; }
+  .bottom-nav-scan .bottom-nav-bubble {
+    width: 52px; height: 52px; border-radius: 16px;
+    display: grid; place-items: center;
+    background: var(--primary); color: #fff;
+    box-shadow: 0 0 0 4px var(--body-bg);
+  }
+  .bottom-nav-scan span:last-child { margin-top: 2px; color: var(--text-secondary); }
+  .has-bottom-nav .page-content { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+  .has-bottom-nav .toast-stack { bottom: calc(84px + env(safe-area-inset-bottom)); }
+}
+
+/* ─── TORRE DE CONTROL (Consola) ─────────────────────────────────────────────── */
+:root[data-surface="night"] {
+  color-scheme: dark;
+  --sidebar-width: 64px;
+
+  --sidebar-bg:          #0b1513;
+  --sidebar-border:      #1b2c27;
+  --sidebar-hover-bg:    #162925;
+  --sidebar-active-bg:   rgba(31,169,113,.14);
+  --sidebar-text:        #86a097;
+  --sidebar-text-active: #e3eee9;
+  --sidebar-active-text: #5fd3a2;
+  --sidebar-label:       #5d7a70;
+  --sidebar-brand-text:  #e3eee9;
+
+  --topbar-bg:           #0e1b18;
+  --topbar-border:       #1b2c27;
+
+  --body-bg:             #0b1513;
+  --surface:             #11201c;
+  --surface-2:           #142622;
+  --surface-3:           #1a2f2a;
+  --line-soft:           #1b2c27;
+  --card-bg:             #11201c;
+  --card-border:         #21352f;
+
+  --primary:             #1fa971;
+  --primary-dark:        #178a5b;
+  --primary-light:       rgba(31,169,113,.16);
+  --primary-deep:        #0f5c3d;
+  --focus-ring:          rgba(31,169,113,.30);
+
+  --text-primary:        #e3eee9;
+  --text-secondary:      #b3c7bf;
+  --text-muted:          #86a097;
+  --border:              #21352f;
+  --border-strong:       #2c4740;
+
+  --success:             #1fa971;
+  --success-bg:          rgba(31,169,113,.16);
+  --warning:             #ff8a3d;
+  --warning-bg:          rgba(255,138,61,.14);
+  --danger:              #ef5350;
+  --danger-bg:           rgba(239,83,80,.14);
+  --info:                #5ab0e0;
+  --info-bg:             rgba(90,176,224,.14);
+
+  --font: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', 'JetBrains Mono', 'Courier New', monospace;
+}
+
+[data-surface="night"] .btn-primary { color: #04110b; }
+[data-surface="night"] .btn-primary:hover:not(:disabled) { background: #29c584; }
+[data-surface="night"] .btn-danger { color: #fff; }
+[data-surface="night"] .badge-success { color: #5fd3a2; }
+[data-surface="night"] .badge-warning { color: #ffb27d; }
+[data-surface="night"] .badge-danger  { color: #ff8d8a; }
+[data-surface="night"] .badge-info    { color: #8ccbf0; }
+[data-surface="night"] .badge-primary { color: #5fd3a2; }
+[data-surface="night"] .hint-box { color: #8ccbf0; }
+[data-surface="night"] .hint-danger, [data-surface="night"] .error-state, [data-surface="night"] .login-error { color: #ff8d8a; border-color: rgba(239,83,80,.35); }
+[data-surface="night"] .hint-warning, [data-surface="night"] .stat-card-alert { color: #ffb27d; border-color: rgba(255,138,61,.3); }
+[data-surface="night"] .stat-purple .stat-card-icon { background: rgba(155,135,214,.16); color: #b9a8ec; }
+[data-surface="night"] .tr-warning td { background: rgba(255,138,61,.07); }
+[data-surface="night"] .tr-danger td { background: rgba(239,83,80,.08); }
+[data-surface="night"] .ticket-msg-own { border-color: rgba(31,169,113,.35); }
+[data-surface="night"] .ticket-msg-internal,
+[data-surface="night"] .ticket-reply-internal .form-textarea { background: rgba(255,138,61,.10); border-color: rgba(255,138,61,.3); }
+[data-surface="night"] .delta-good, [data-surface="night"] .cc-item-done .cc-item-info strong { color: #5fd3a2; }
+[data-surface="night"] .delta-bad { color: #ff8d8a; }
+[data-surface="night"] .skeleton { opacity: .6; }
+[data-surface="night"] .modal-overlay { background: rgba(2,8,6,.7); }
+[data-surface="night"] .td-mono, [data-surface="night"] .stat-card-value { font-family: var(--font-mono); letter-spacing: -0.5px; }
+[data-surface="night"] .sidebar-user-avatar { background: var(--surface-3); color: var(--text-primary); border-color: var(--border); }
+
+/* Barra de estado (Consola) */
+.consola-status { display: flex; align-items: center; gap: 14px; font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); letter-spacing: .3px; }
+.consola-led { display: inline-flex; align-items: center; gap: 6px; }
+.consola-led::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 3px rgba(31,169,113,.18); }
+
+/* Menú de íconos en escritorio; en celular sigue siendo el menú completo */
+@media (min-width: 901px) {
+  [data-surface="night"] .sidebar-brand { justify-content: center; padding: 0; }
+  [data-surface="night"] .sidebar-brand-text,
+  [data-surface="night"] .nav-label,
+  [data-surface="night"] .nav-group-label,
+  [data-surface="night"] .sidebar-user-info { display: none; }
+  [data-surface="night"] .sidebar-nav { padding: 12px 10px; gap: 6px; }
+  [data-surface="night"] .nav-item { justify-content: center; padding: 0; width: 44px; height: 44px; margin: 0 auto; border-radius: 10px; }
+  [data-surface="night"] .nav-item-active::before {
+    content: ''; position: absolute; left: -10px; top: 10px; bottom: 10px; width: 3px;
+    border-radius: 0 3px 3px 0; background: var(--primary);
+  }
+  [data-surface="night"] .sidebar-footer { padding: 12px 0; }
+  [data-surface="night"] .sidebar-user { justify-content: center; }
+}
+@media (max-width: 900px) {
+  :root[data-surface="night"] { --sidebar-width: 260px; }
+  .consola-status { display: none; }
+}
+
+/* La vista previa de marca en la Consola muestra cómo se verá en tiendas (claro). */
+[data-surface="night"] .brand-preview {
+  color-scheme: light;
+  --sidebar-bg: #ffffff; --sidebar-border: #e2e5e1; --sidebar-text: #4d5953; --sidebar-label: #7a857e; --sidebar-brand-text: #1b2520;
+  --body-bg: #f4f5f3; --surface: #ffffff; --surface-2: #f8f9f7; --surface-3: #eef0ed; --line-soft: #eceeea; --card-bg: #ffffff;
+  --text-primary: #1b2520; --text-secondary: #3f4a44; --text-muted: #6b766f; --border: #e2e5e1; --border-strong: #cfd4cf;
+  --font: 'Figtree', 'IBM Plex Sans', sans-serif;
+  color: var(--text-primary); font-family: var(--font);
+}
+[data-surface="night"] .brand-preview .btn-primary { color: #fff; }
+
+.login-logo-img { box-shadow: 0 0 0 1px rgba(255,255,255,.28); }

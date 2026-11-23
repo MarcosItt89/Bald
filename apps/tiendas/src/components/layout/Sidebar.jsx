@@ -35,6 +35,7 @@ function NavGroup({ group, items, onNavigate }) {
 export default function Sidebar({ onNavigate }) {
   const auth = useAuth()
   const { profile, isPlatformAdmin } = auth
+  const companyName = profile?.company_display_name || profile?.company_name
 
   const groups = NAV_GROUPS
     .map((group) => ({ group, items: group.items.filter((item) => canAccess(item, auth)) }))
@@ -43,12 +44,13 @@ export default function Sidebar({ onNavigate }) {
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
-        {/* Marca de su empresa (0028). */}
-        <img src={profile?.company_logo_url ? profile.company_logo_url : '/logo.svg'}
-          alt="" width="32" height="32" className="sidebar-brand-logo" />
+        {/* Marca de su empresa (0028): su logo o sus iniciales en su color. */}
+        {profile?.company_logo_url
+          ? <img src={profile.company_logo_url} alt="" width="36" height="36" className="sidebar-brand-logo" />
+          : <span className="sidebar-brand-mark" aria-hidden="true">{getInitials(companyName) || 'OP'}</span>}
         <div className="sidebar-brand-text">
-          <span className="sidebar-brand-name">Operalia</span>
-          <span className="sidebar-brand-company">{profile?.company_display_name || profile?.company_name}</span>
+          <span className="sidebar-brand-name">{companyName || 'Operalia'}</span>
+          <span className="sidebar-brand-company">{companyName ? 'Operalia' : ''}</span>
         </div>
       </div>
 

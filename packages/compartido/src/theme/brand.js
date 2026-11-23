@@ -9,13 +9,17 @@
  *   --primary-deep   tono más oscuro: menú activo, degradado del login, filtros
  *
  * La última marca se guarda en localStorage y bootBrand() la aplica antes
- * del primer render (main.jsx), así no parpadea el azul por defecto.
+ * del primer render (main.jsx), así no parpadea el color por defecto.
  */
-export const DEFAULT_BRAND_COLOR = '#2563eb'
+export const DEFAULT_BRAND_COLOR = '#2a6b47'
+/** Azul del diseño anterior: las empresas que nunca eligieron color lo traen guardado. */
+const LEGACY_DEFAULT = '#2563eb'
 const STORAGE_KEY = 'operalia.brand'
 const AA = 4.5
 
 const isHex = (v) => /^#[0-9a-f]{6}$/i.test(v ?? '')
+/** Sin color propio: nulo, inválido, el verde de Operalia o el azul anterior. */
+const isDefault = (v) => !isHex(v) || [DEFAULT_BRAND_COLOR, LEGACY_DEFAULT].includes(v.toLowerCase())
 
 const toRgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
 const toHex = (rgb) => `#${rgb.map((c) => Math.round(Math.min(255, Math.max(0, c))).toString(16).padStart(2, '0')).join('')}`
@@ -40,7 +44,7 @@ export const contrastWithWhite = (hex) => 1.05 / (luminance(hex) + 0.05)
  * adjusted = true si hubo que oscurecerlo para el contraste AA con blanco.
  */
 export function brandPalette(color) {
-  const base = isHex(color) ? color.toLowerCase() : DEFAULT_BRAND_COLOR
+  const base = isDefault(color) ? DEFAULT_BRAND_COLOR : color.toLowerCase()
   let primary = base
   for (let t = 0.05; contrastWithWhite(primary) < AA && t <= 1; t += 0.05) primary = mix(base, '#000000', t)
   return {
@@ -53,10 +57,10 @@ export function brandPalette(color) {
   }
 }
 
-/** Aplica el color de la marca a toda la app. null/inválido = azul de Operalia. */
+/** Aplica el color de la marca a toda la app. null/inválido = verde de Operalia. */
 export function applyBrand(color) {
   const root = document.documentElement
-  if (!isHex(color) || color.toLowerCase() === DEFAULT_BRAND_COLOR) {
+  if (isDefault(color)) {
     ['--primary', '--primary-dark', '--primary-light', '--primary-deep'].forEach((v) => root.style.removeProperty(v))
     return brandPalette(DEFAULT_BRAND_COLOR)
   }

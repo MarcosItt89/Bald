@@ -1,8 +1,11 @@
 /* Consola Operalia: solo lo propio; el resto viene del paquete compartido. */
 .consola-auth { min-height: 100vh; display: grid; place-items: center; padding: 16px;
-  background: linear-gradient(135deg, #0f172a 0%, var(--primary-deep) 100%); }
+  background:
+    repeating-linear-gradient(0deg, rgba(134,160,151,.06) 0 1px, transparent 1px 48px),
+    repeating-linear-gradient(90deg, rgba(134,160,151,.06) 0 1px, transparent 1px 48px),
+    var(--body-bg); }
 .consola-auth-card { width: 100%; max-width: 380px; background: var(--card-bg); border: 1px solid var(--border);
-  border-radius: var(--radius-lg); box-shadow: var(--card-shadow); padding: 28px 24px; }
+  border-radius: var(--radius-lg); box-shadow: 0 24px 60px rgba(0,0,0,.35); padding: 28px 24px; }
 .consola-auth-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
 .consola-auth-header h1 { font-size: 20px; font-weight: 700; color: var(--text-primary); }
 .consola-auth-header p { font-size: 13px; color: var(--text-muted); }
@@ -10,5 +13,5 @@
 .consola-noaccess > svg { color: var(--danger); }
 .consola-noaccess h1 { font-size: 20px; font-weight: 700; color: var(--text-primary); }
 .consola-noaccess p { font-size: 14px; color: var(--text-secondary); overflow-wrap: anywhere; }
-.consola-topbar-title { font-weight: 700; color: var(--text-primary); }
+.consola-topbar-title { font-weight: 600; color: var(--text-primary); letter-spacing: -0.2px; }
 @media (max-width: 600px) { .consola-topbar-email { display: none; } }

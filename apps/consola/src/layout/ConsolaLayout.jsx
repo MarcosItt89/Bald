@@ -2,6 +2,8 @@
  * ConsolaLayout — menú lateral + barra superior de la Consola Operalia.
  * Usa las mismas clases de estilo que la app de tiendas (paquete compartido).
  * En celular el menú se abre encima del contenido y se cierra al navegar.
+ * Tema «Torre de control»: <html data-surface="night"> (index.html) y
+ * packages/compartido/src/styles/tema.css; en escritorio el menú es de íconos.
  */
 import { Suspense, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
@@ -27,6 +29,7 @@ export default function ConsolaLayout() {
   const navigate = useNavigate()
   const [open, setOpen] = useState(() => !isMobile())
   const onNavigate = () => { if (isMobile()) setOpen(false) }
+  const today = new Date().toLocaleDateString('es-MX', { weekday: 'short', day: '2-digit', month: 'short' }).toUpperCase()
   const signOut = async () => { await logout(); navigate('/login', { replace: true }) }
 
   return (
@@ -43,7 +46,7 @@ export default function ConsolaLayout() {
           <div className="nav-group">
             <span className="nav-group-label">Plataforma</span>
             {NAV.map((item) => (
-              <NavLink key={item.path} to={item.path} end={item.path === '/'} onClick={onNavigate}
+              <NavLink key={item.path} to={item.path} end={item.path === '/'} onClick={onNavigate} title={item.label}
                 className={({ isActive }) => `nav-item ${isActive ? 'nav-item-active' : ''}`}>
                 <item.icon size={16} className="nav-icon" />
                 <span className="nav-label">{item.label}</span>
@@ -52,7 +55,7 @@ export default function ConsolaLayout() {
           </div>
         </nav>
         <div className="sidebar-footer">
-          <div className="sidebar-user">
+          <div className="sidebar-user" title={profile?.full_name}>
             <div className="sidebar-user-avatar">{getInitials(profile?.full_name)}</div>
             <div className="sidebar-user-info">
               <span className="sidebar-user-name">{profile?.full_name}</span>
@@ -67,6 +70,10 @@ export default function ConsolaLayout() {
           <div className="topbar-left">
             <button className="topbar-menu-btn" onClick={() => setOpen((v) => !v)} aria-label="Menú"><Menu size={20} /></button>
             <span className="consola-topbar-title">Consola Operalia</span>
+            <span className="consola-status" aria-hidden="true">
+              <span className="consola-led">EN LÍNEA</span>
+              <span>{today}</span>
+            </span>
           </div>
           <div className="topbar-right">
             <span className="consola-topbar-email text-muted text-sm">{session?.user?.email}</span>

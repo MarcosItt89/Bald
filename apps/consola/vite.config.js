@@ -3,13 +3,15 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { manualChunks } from '../../packages/compartido/build/manualChunks.js'
+import { supabaseDefine } from '../../packages/compartido/build/supabaseEnv.js'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   envDir: '../..',
   server: { port: 5174 },
   preview: { port: 4174 },
   // Marca el build como Consola (env.app en el paquete compartido).
-  define: { 'import.meta.env.VITE_OPERALIA_APP': JSON.stringify('consola') },
+  // Supabase (acepta también los nombres de la integración con Vercel) y build marcado como Consola.
+  define: { ...supabaseDefine(mode, '../..'), 'import.meta.env.VITE_OPERALIA_APP': JSON.stringify('consola') },
   build: { rolldownOptions: { output: { manualChunks } } },
   plugins: [react()],
-})
+}))

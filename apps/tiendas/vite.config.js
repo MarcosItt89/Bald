@@ -2,10 +2,13 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import { manualChunks } from '../../packages/compartido/build/manualChunks.js'
+import { supabaseDefine } from '../../packages/compartido/build/supabaseEnv.js'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   // Lee el .env de la raíz del repo (lo comparten tiendas y Consola).
   envDir: '../..',
+  // Supabase: acepta también los nombres de la integración con Vercel; en Vercel falla si faltan.
+  define: supabaseDefine(mode, '../..'),
   build: {
     rolldownOptions: {
       output: {
@@ -50,4 +53,4 @@ export default defineConfig({
       },
     }),
   ],
-})
+}))

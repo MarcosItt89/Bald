@@ -56,6 +56,8 @@ Variables de `.env`, que también se configuran en Vercel → Settings → Envir
 | `VITE_TIENDAS_URL` | Consola | Dominio de la app de tiendas (`https://…`), para armar el link `/e/<código>` y su QR. Sin ella la Consola avisa que el link no sirve |
 | `VITE_CONSOLA_URL` | Tiendas | Dominio de la Consola (`https://…`). Lo usan el aviso de `/plataforma` y el link «Consola Operalia» del menú del superadmin. Sin ella el aviso no trae link |
 
+> **En Vercel:** marca las variables para **Production y Preview** (las ramas que no son `main` se publican como Preview y sin ellas la app no conecta). También sirven los nombres que crea la integración Supabase ↔ Vercel (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`). Si faltan, el build en Vercel **falla a propósito** con un mensaje que dice cuáles, y sigue en línea la versión anterior (`packages/compartido/build/supabaseEnv.js`).
+
 | Comando (en la raíz) | Para qué |
 |---|---|
 | `npm run dev` / `npm run dev:consola` | Servidor de desarrollo de tiendas / Consola |
